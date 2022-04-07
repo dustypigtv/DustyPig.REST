@@ -1,6 +1,8 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,11 +13,11 @@ namespace DustyPig.REST
     {
         private readonly HttpClient _httpClient = new HttpClient();
 
-        private bool disposedValue;
+        private bool _disposed = false;
 
         protected virtual void Dispose(bool disposing)
         {
-            if (!disposedValue)
+            if (!_disposed)
             {
                 if (disposing)
                 {
@@ -25,7 +27,7 @@ namespace DustyPig.REST
 
                 // TODO: free unmanaged resources (unmanaged objects) and override finalizer
                 // TODO: set large fields to null
-                disposedValue = true;
+                _disposed = true;
             }
         }
 
@@ -48,17 +50,32 @@ namespace DustyPig.REST
             set => _httpClient.Timeout = value;
         }
 
-        public System.Net.Http.Headers.HttpRequestHeaders DefaultRequestHeaders => _httpClient.DefaultRequestHeaders;
+
+        public HttpRequestHeaders DefaultRequestHeaders => _httpClient.DefaultRequestHeaders;
 
 
-        #region GET
+        
+        
+        private HttpRequestMessage CreateRequest(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data)
+        {
+            var request = new HttpRequestMessage(method, url);
+            if (headers != null)
+                foreach (var header in headers)
+                   request.Headers.Add(header.Key, header.Value);
 
-        public virtual async Task<Response> GetAsync(string url, CancellationToken cancellationToken = default)
+            if (data != null)
+                request.Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");
+           
+            return request;
+        }
+
+        private async Task<Response> GetResponseAsync(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             string content = null;
             try
             {
-                using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
+                using var request = CreateRequest(method, url, headers, data);
+                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);                
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
                 return new Response { Success = true };
@@ -71,141 +88,12 @@ namespace DustyPig.REST
             }
         }
 
-        public virtual async Task<Response<T>> GetWithResponseDataAsync<T>(string url, CancellationToken cancellationToken = default)
+        private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             string content = null;
             try
             {
-                using var response = await _httpClient.GetAsync(url, cancellationToken).ConfigureAwait(false);
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                var ret = JsonConvert.DeserializeObject<T>(content);
-                return new Response<T> { Success = true, Data = ret };
-            }
-            catch (Exception ex)
-            {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response<T> { Error = ex };
-                return new Response<T> { Error = new Exception(content, ex) };
-            }
-        }
-
-        #endregion
-
-
-
-        #region POST
-
-        public virtual async Task<Response> PostAsync(string url, object data, CancellationToken cancellationToken = default)
-        {
-            string content = null;
-            try
-            {
-                using var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"), cancellationToken).ConfigureAwait(false);
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                return new Response { Success = true };
-            }
-            catch (Exception ex)
-            {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response { Error = ex };
-                return new Response { Error = new Exception(content, ex) };
-            }
-        }
-
-        public virtual async Task<Response<T>> PostWithResponseDataAsync<T>(string url, object data, CancellationToken cancellationToken = default)
-        {
-            string content = null;
-            try
-            {
-                using var response = await _httpClient.PostAsync(url, new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json"), cancellationToken).ConfigureAwait(false);
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                var ret = JsonConvert.DeserializeObject<T>(content);
-                return new Response<T> { Success = true, Data = ret };
-            }
-            catch (Exception ex)
-            {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response<T> { Error = ex };
-                return new Response<T> { Error = new Exception(content, ex) };
-            }
-        }
-
-        #endregion
-
-
-        #region DELETE
-
-        public virtual async Task<Response> DeleteAsync(string url, CancellationToken cancellationToken = default)
-        {
-            string content = null;
-            try
-            {
-                using var response = await _httpClient.DeleteAsync(url, cancellationToken).ConfigureAwait(false);
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                return new Response { Success = true };
-            }
-            catch (Exception ex)
-            {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response { Error = ex };
-                return new Response { Error = new Exception(content, ex) };
-            }
-        }
-
-        public virtual async Task<Response> DeleteAsync(string url, object data, CancellationToken cancellationToken = default)
-        {
-            string content = null;
-            try
-            {
-                var request = new HttpRequestMessage(HttpMethod.Delete, url)
-                {
-                    Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
-                };
-                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                return new Response { Success = true };
-            }
-            catch (Exception ex)
-            {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response { Error = ex };
-                return new Response { Error = new Exception(content, ex) };
-            }
-        }
-
-        public virtual async Task<Response<T>> DeleteWithResponseDataAsync<T>(string url, CancellationToken cancellationToken = default)
-        {
-            string content = null;
-            try
-            {
-                using var response = await _httpClient.DeleteAsync(url, cancellationToken).ConfigureAwait(false);
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                var ret = JsonConvert.DeserializeObject<T>(content);
-                return new Response<T> { Success = true, Data = ret };
-            }
-            catch (Exception ex)
-            {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response<T> { Error = ex };
-                return new Response<T> { Error = new Exception(content, ex) };
-            }
-        }
-
-        public virtual async Task<Response<T>> DeleteWithResponseDataAsync<T>(string url, object data, CancellationToken cancellationToken = default)
-        {
-            string content = null;
-            try
-            {
-                var request = new HttpRequestMessage(HttpMethod.Delete, url)
-                {
-                    Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json")
-                };
+                using var request = CreateRequest(method, url, headers, data);
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
@@ -220,7 +108,75 @@ namespace DustyPig.REST
             }
         }
 
-        #endregion
 
+
+
+
+
+        public virtual Task<Response> GetAsync(string url, object data = null, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync(HttpMethod.Get, url, requestHeaders, null, cancellationToken);
+
+
+        public virtual Task<Response<T>> GetAsync<T>(string url, object data = null, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync<T>(HttpMethod.Get, url, requestHeaders, null, cancellationToken);
+
+
+
+
+
+        public virtual Task<Response> HeadAsync(string url, object data = null, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync(HttpMethod.Head, url, requestHeaders, null, cancellationToken);
+
+
+        public virtual Task<Response<T>> HeadAsync<T>(string url, object data = null, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync<T>(HttpMethod.Head, url, requestHeaders, null, cancellationToken);
+
+
+
+
+
+        public virtual Task<Response> PostAsync(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
+
+        
+        public virtual Task<Response<T>> PostAsync<T>(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync<T>(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
+
+        
+
+
+
+        public virtual Task<Response> DeleteAsync(string url, object data = null, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync(HttpMethod.Delete, url, requestHeaders, data, cancellationToken);
+
+        
+        public virtual Task<Response<T>> DeleteAsync<T>(string url, object data = null, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync<T>(HttpMethod.Delete, url, requestHeaders, data, cancellationToken);
+
+        
+
+
+
+        public virtual Task<Response> PutAsync(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync(HttpMethod.Put, url, requestHeaders, data, cancellationToken);
+
+        
+        public virtual Task<Response<T>> PutAsync<T>(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync<T>(HttpMethod.Put, url, requestHeaders, data, cancellationToken);
+
+        
+
+
+
+#if NET6_0_OR_GREATER
+
+        public virtual Task<Response> PatchAsync(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
+
+       
+        public virtual Task<Response<T>> PatchAsync<T>(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+            GetResponseAsync<T>(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
+
+#endif
     }
 }

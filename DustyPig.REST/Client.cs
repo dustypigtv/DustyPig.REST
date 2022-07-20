@@ -14,6 +14,7 @@ namespace DustyPig.REST
         private readonly HttpClient _httpClient = new HttpClient();
 
         private bool _disposed = false;
+        private bool _autoThrowIfError = false;
 
         protected virtual void Dispose(bool disposing)
         {
@@ -50,6 +51,11 @@ namespace DustyPig.REST
             set => _httpClient.Timeout = value;
         }
 
+        public bool AutoThrowIfError
+        {
+            get => _autoThrowIfError;
+            set => _autoThrowIfError = value;
+        }
 
         public HttpRequestHeaders DefaultRequestHeaders => _httpClient.DefaultRequestHeaders;
 
@@ -82,9 +88,13 @@ namespace DustyPig.REST
             }
             catch (Exception ex)
             {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response { Error = ex };
-                return new Response { Error = new Exception(content, ex) };
+                var ret = string.IsNullOrWhiteSpace(content) 
+                    ? new Response { Error = ex } 
+                    : new Response { Error = new Exception(content, ex) };
+
+                if (AutoThrowIfError)
+                    ret.ThrowIfError();
+                return ret;
             }
         }
 
@@ -95,21 +105,24 @@ namespace DustyPig.REST
             {
                 using var request = CreateRequest(method, url, headers, data);
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);             
                 response.EnsureSuccessStatusCode();
                 var ret = JsonConvert.DeserializeObject<T>(content);
                 return new Response<T> { Success = true, Data = ret };
             }
             catch (Exception ex)
             {
-                if (string.IsNullOrWhiteSpace(content))
-                    return new Response<T> { Error = ex };
-                return new Response<T> { Error = new Exception(content, ex) };
+                var ret = string.IsNullOrWhiteSpace(content) 
+                    ? new Response<T> { Error = ex } 
+                    : new Response<T> { Error = new Exception(content, ex) };
+
+                if (AutoThrowIfError)
+                    ret.ThrowIfError();
+                return ret;
             }
         }
 
-
-
+        
 
 
 

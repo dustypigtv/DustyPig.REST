@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -15,6 +16,7 @@ namespace DustyPig.REST
 
         private bool _disposed = false;
         private bool _autoThrowIfError = false;
+        private bool _includeRawContentInResponse = false;
 
         protected virtual void Dispose(bool disposing)
         {
@@ -57,6 +59,13 @@ namespace DustyPig.REST
             set => _autoThrowIfError = value;
         }
 
+
+        public bool IncludeRawContentInResponse
+        {
+            get => _includeRawContentInResponse;
+            set => _includeRawContentInResponse = value;
+        }
+
         public HttpRequestHeaders DefaultRequestHeaders => _httpClient.DefaultRequestHeaders;
 
 
@@ -78,22 +87,38 @@ namespace DustyPig.REST
         private async Task<Response> GetResponseAsync(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             string content = null;
+            HttpStatusCode statusCode = HttpStatusCode.BadRequest;
+            string reasonPhrase = null;
             try
             {
                 using var request = CreateRequest(method, url, headers, data);
-                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);                
+                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                statusCode = response.StatusCode;
+                reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
                 response.EnsureSuccessStatusCode();
-                return new Response { Success = true };
+                return new Response 
+                {
+                    Success = true, 
+                    StatusCode = response.StatusCode, 
+                    ReasonPhrase = response.ReasonPhrase,
+                    RawContent = IncludeRawContentInResponse ? content : null
+                };
             }
             catch (Exception ex)
             {
-                var ret = string.IsNullOrWhiteSpace(content) 
+                var ret = string.IsNullOrWhiteSpace(reasonPhrase) 
                     ? new Response { Error = ex } 
-                    : new Response { Error = new Exception(content, ex) };
+                    : new Response { Error = new Exception(reasonPhrase, ex) };
+
+                ret.StatusCode = statusCode;
+                ret.ReasonPhrase = reasonPhrase;
+                if(IncludeRawContentInResponse)
+                    ret.RawContent = content;
 
                 if (AutoThrowIfError)
                     ret.ThrowIfError();
+
                 return ret;
             }
         }
@@ -101,23 +126,41 @@ namespace DustyPig.REST
         private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             string content = null;
+            HttpStatusCode statusCode = HttpStatusCode.BadRequest;
+            string reasonPhrase = null;
             try
             {
                 using var request = CreateRequest(method, url, headers, data);
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                statusCode = response.StatusCode;
+                reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);             
                 response.EnsureSuccessStatusCode();
                 var ret = JsonConvert.DeserializeObject<T>(content);
-                return new Response<T> { Success = true, Data = ret };
+                return new Response<T>
+                {
+                    Success = true, 
+                    Data = ret, 
+                    StatusCode = statusCode, 
+                    ReasonPhrase = reasonPhrase, 
+                    RawContent = IncludeRawContentInResponse ? content : null
+                };
             }
             catch (Exception ex)
             {
-                var ret = string.IsNullOrWhiteSpace(content) 
-                    ? new Response<T> { Error = ex } 
-                    : new Response<T> { Error = new Exception(content, ex) };
+                var ret = string.IsNullOrWhiteSpace(reasonPhrase)
+                    ? new Response<T> { Error = ex }
+                    : new Response<T> { Error = new Exception(reasonPhrase, ex) };
+
+                ret.StatusCode = statusCode;
+                ret.ReasonPhrase = reasonPhrase;
+                if (IncludeRawContentInResponse)
+                    ret.RawContent = content;
+
 
                 if (AutoThrowIfError)
                     ret.ThrowIfError();
+
                 return ret;
             }
         }

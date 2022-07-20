@@ -13,7 +13,7 @@
 	  <LangVersion>8</LangVersion>
 	  
       <!-- Leave the revision as zero, it's automatically set with github actions -->
-	  <Version>3.0.1.0</Version>
+	  <Version>3.0.2.0</Version>
 	  
   </PropertyGroup>
 

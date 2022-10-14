@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,19 +12,53 @@ namespace DustyPig.REST
 {
     public class Client
     {
-        private static readonly HttpClient _defaultHttpClient = new HttpClient();
+        private readonly HttpClient _httpClient = new HttpClient();
 
-        private readonly HttpClient _httpClient = null;
-
-        public Client() { }        
-
-        public Client(HttpClient client) => _httpClient = client;
+        private bool _disposed = false;
         
-        private HttpClient GetClient() => _httpClient ?? _defaultHttpClient;
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects)
+                    _httpClient.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
+                // TODO: set large fields to null
+                _disposed = true;
+            }
+        }
+
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
+        }
+
+        public Uri BaseAddress
+        {
+            get => _httpClient.BaseAddress;
+            set => _httpClient.BaseAddress = value;
+        }
+
+        public TimeSpan Timeout
+        {
+            get => _httpClient.Timeout;
+            set => _httpClient.Timeout = value;
+        }
 
         public bool AutoThrowIfError { get; set; }
 
+
         public bool IncludeRawContentInResponse { get; set; }
+
+        public HttpRequestHeaders DefaultRequestHeaders => _httpClient.DefaultRequestHeaders;
+
+
 
         private HttpRequestMessage CreateRequest(HttpMethod method, string url, IDictionary<string, string> headers, object data)
         {
@@ -61,7 +96,7 @@ namespace DustyPig.REST
             try
             {
                 using var request = CreateRequest(method, url, headers, data);
-                using var response = await GetClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
+                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -100,7 +135,7 @@ namespace DustyPig.REST
             try
             {
                 using var request = CreateRequest(method, uri, headers, data);
-                using var response = await GetClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
+                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -139,7 +174,7 @@ namespace DustyPig.REST
             try
             {
                 using var request = CreateRequest(method, url, headers, data);
-                using var response = await GetClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
+                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);             
@@ -181,7 +216,7 @@ namespace DustyPig.REST
             try
             {
                 using var request = CreateRequest(method, uri, headers, data);
-                using var response = await GetClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
+                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);

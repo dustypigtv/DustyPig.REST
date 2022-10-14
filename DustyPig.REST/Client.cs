@@ -3,55 +3,28 @@ using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace DustyPig.REST
 {
-    public class Client : IDisposable
+    public class Client
     {
-        private readonly HttpClient _httpClient = new HttpClient();
+        private static readonly HttpClient _defaultHttpClient = new HttpClient();
 
-        private bool _disposed = false;
+        private readonly HttpClient _httpClient = null;
         private bool _autoThrowIfError = false;
         private bool _includeRawContentInResponse = false;
 
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    // TODO: dispose managed state (managed objects)
-                    _httpClient.Dispose();
-                }
+        public Client() { }        
 
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields to null
-                _disposed = true;
-            }
+        public Client(HttpClient client)
+        {
+            _httpClient = client;
         }
 
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        public Uri BaseAddress
-        {
-            get => _httpClient.BaseAddress;
-            set => _httpClient.BaseAddress = value;
-        }
-
-        public TimeSpan Timeout
-        {
-            get => _httpClient.Timeout;
-            set => _httpClient.Timeout = value;
-        }
+        private HttpClient GetClient() => _httpClient ?? _defaultHttpClient;
 
         public bool AutoThrowIfError
         {
@@ -64,12 +37,7 @@ namespace DustyPig.REST
         {
             get => _includeRawContentInResponse;
             set => _includeRawContentInResponse = value;
-        }
-
-        public HttpRequestHeaders DefaultRequestHeaders => _httpClient.DefaultRequestHeaders;
-
-
-        
+        }        
         
         private HttpRequestMessage CreateRequest(HttpMethod method, string url, IDictionary<string, string> headers, object data)
         {
@@ -92,7 +60,7 @@ namespace DustyPig.REST
             try
             {
                 using var request = CreateRequest(method, url, headers, data);
-                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                using var response = await GetClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
@@ -131,7 +99,7 @@ namespace DustyPig.REST
             try
             {
                 using var request = CreateRequest(method, url, headers, data);
-                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                using var response = await GetClient().SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);             

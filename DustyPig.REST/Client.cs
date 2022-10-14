@@ -246,7 +246,7 @@ namespace DustyPig.REST
             GetResponseAsync<T>(HttpMethod.Head, url, requestHeaders, null, cancellationToken);
 
         public virtual Task<Response<T>> HeadAsync<T>(Uri uri, object data = null, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
-                    GetResponseAsync<T>(HttpMethod.Head, uri, requestHeaders, null, cancellationToken);
+            GetResponseAsync<T>(HttpMethod.Head, uri, requestHeaders, null, cancellationToken);
 
 
 
@@ -256,14 +256,14 @@ namespace DustyPig.REST
             GetResponseAsync(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
 
         public virtual Task<Response> PostAsync(Uri uri, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
-                    GetResponseAsync(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
+            GetResponseAsync(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
 
 
         public virtual Task<Response<T>> PostAsync<T>(string url, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
 
         public virtual Task<Response<T>> PostAsync<T>(Uri uri, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
-                    GetResponseAsync<T>(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
+           GetResponseAsync<T>(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
 
 
 
@@ -280,7 +280,7 @@ namespace DustyPig.REST
             GetResponseAsync<T>(HttpMethod.Delete, url, requestHeaders, data, cancellationToken);
 
         public virtual Task<Response<T>> DeleteAsync<T>(Uri uri, object data = null, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
-                    GetResponseAsync<T>(HttpMethod.Delete, uri, requestHeaders, data, cancellationToken);
+            GetResponseAsync<T>(HttpMethod.Delete, uri, requestHeaders, data, cancellationToken);
 
 
 

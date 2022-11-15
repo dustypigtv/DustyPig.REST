@@ -10,34 +10,11 @@ using System.Threading.Tasks;
 
 namespace DustyPig.REST
 {
-    public class Client
+    public class Client : IDisposable
     {
         private readonly HttpClient _httpClient = new HttpClient();
 
-        private bool _disposed = false;
-        
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    // TODO: dispose managed state (managed objects)
-                    _httpClient.Dispose();
-                }
-
-                // TODO: free unmanaged resources (unmanaged objects) and override finalizer
-                // TODO: set large fields to null
-                _disposed = true;
-            }
-        }
-
-        public void Dispose()
-        {
-            // Do not change this code. Put cleanup code in 'Dispose(bool disposing)' method
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
+        public void Dispose() => _httpClient.Dispose();
 
         public Uri BaseAddress
         {
@@ -334,9 +311,7 @@ namespace DustyPig.REST
         public virtual Task<Response<T>> PutAsync<T>(Uri uri, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Put, uri, requestHeaders, data, cancellationToken);
 
-
-
-
+        
 
 #if NET6_0_OR_GREATER
 

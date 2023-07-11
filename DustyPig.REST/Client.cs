@@ -42,7 +42,8 @@ namespace DustyPig.REST
             var request = new HttpRequestMessage(method, url);
             if (headers != null)
                 foreach (var header in headers)
-                    request.Headers.Add(header.Key, header.Value);
+                    //request.Headers.Add(header.Key, header.Value);
+                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
             if (data != null)
                 request.Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");
@@ -55,7 +56,8 @@ namespace DustyPig.REST
             var request = new HttpRequestMessage(method, uri);
             if (headers != null)
                 foreach (var header in headers)
-                    request.Headers.Add(header.Key, header.Value);
+                    //request.Headers.Add(header.Key, header.Value);
+                    request.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
             if (data != null)
                 request.Content = new StringContent(JsonConvert.SerializeObject(data), Encoding.UTF8, "application/json");

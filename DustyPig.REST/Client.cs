@@ -105,16 +105,16 @@ namespace DustyPig.REST
             }
         }
 
-        private Task<Response> GetResponseAsync(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        private async Task<Response> GetResponseAsync(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             using var request = CreateRequest(method, url, headers, data);
-            return GetResponseAsync(request, cancellationToken);
+            return await GetResponseAsync(request, cancellationToken).ConfigureAwait(false);
         }
 
-        private Task<Response> GetResponseAsync(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        private async Task<Response> GetResponseAsync(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             using var request = CreateRequest(method, uri, headers, data);
-            return GetResponseAsync(request, cancellationToken);
+            return await GetResponseAsync(request, cancellationToken).ConfigureAwait(false);
         }
 
 
@@ -164,16 +164,16 @@ namespace DustyPig.REST
         }
 
 
-        private Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             using var request = CreateRequest(method, url, headers, data);
-            return GetResponseAsync<T>(request, cancellationToken);
+            return await GetResponseAsync<T>(request, cancellationToken).ConfigureAwait(false);
         }
 
-        private Task<Response<T>> GetResponseAsync<T>(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
             using var request = CreateRequest(method, uri, headers, data);
-            return GetResponseAsync<T>(request, cancellationToken);
+            return await GetResponseAsync<T>(request, cancellationToken).ConfigureAwait(false);
         }
 
 

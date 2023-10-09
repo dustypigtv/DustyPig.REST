@@ -42,7 +42,6 @@ namespace DustyPig.REST
             var request = new HttpRequestMessage(method, url);
             if (headers != null)
                 foreach (var header in headers)
-                    //request.Headers.Add(header.Key, header.Value);
                     request.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
             if (data != null)
@@ -56,7 +55,6 @@ namespace DustyPig.REST
             var request = new HttpRequestMessage(method, uri);
             if (headers != null)
                 foreach (var header in headers)
-                    //request.Headers.Add(header.Key, header.Value);
                     request.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
             if (data != null)
@@ -67,53 +65,15 @@ namespace DustyPig.REST
 
 
 
-        private async Task<Response> GetResponseAsync(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+
+
+        public async Task<Response> GetResponseAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             string content = null;
             HttpStatusCode statusCode = HttpStatusCode.BadRequest;
             string reasonPhrase = null;
             try
             {
-                using var request = CreateRequest(method, url, headers, data);
-                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                return new Response 
-                {
-                    Success = true, 
-                    StatusCode = response.StatusCode, 
-                    ReasonPhrase = response.ReasonPhrase,
-                    RawContent = IncludeRawContentInResponse ? content : null
-                };
-            }
-            catch (Exception ex)
-            {
-                var ret = string.IsNullOrWhiteSpace(reasonPhrase) 
-                    ? new Response { Error = ex } 
-                    : new Response { Error = new Exception(reasonPhrase, ex) };
-
-                ret.StatusCode = statusCode;
-                ret.ReasonPhrase = reasonPhrase;
-                if(IncludeRawContentInResponse)
-                    ret.RawContent = content;
-
-                if (AutoThrowIfError)
-                    ret.ThrowIfError();
-
-                return ret;
-            }
-        }
-
-        private async Task<Response> GetResponseAsync(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
-        {
-            string content = null;
-            HttpStatusCode statusCode = HttpStatusCode.BadRequest;
-            string reasonPhrase = null;
-            try
-            {
-                using var request = CreateRequest(method, uri, headers, data);
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -145,56 +105,30 @@ namespace DustyPig.REST
             }
         }
 
-        private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        private Task<Response> GetResponseAsync(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
         {
-            string content = null;
-            HttpStatusCode statusCode = HttpStatusCode.BadRequest;
-            string reasonPhrase = null;
-            try
-            {
-                using var request = CreateRequest(method, url, headers, data);
-                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);             
-                response.EnsureSuccessStatusCode();
-                var ret = JsonConvert.DeserializeObject<T>(content);
-                return new Response<T>
-                {
-                    Success = true, 
-                    Data = ret, 
-                    StatusCode = statusCode, 
-                    ReasonPhrase = reasonPhrase, 
-                    RawContent = IncludeRawContentInResponse ? content : null
-                };
-            }
-            catch (Exception ex)
-            {
-                var ret = string.IsNullOrWhiteSpace(reasonPhrase)
-                    ? new Response<T> { Error = ex }
-                    : new Response<T> { Error = new Exception(reasonPhrase, ex) };
-
-                ret.StatusCode = statusCode;
-                ret.ReasonPhrase = reasonPhrase;
-                if (IncludeRawContentInResponse)
-                    ret.RawContent = content;
-
-
-                if (AutoThrowIfError)
-                    ret.ThrowIfError();
-
-                return ret;
-            }
+            using var request = CreateRequest(method, url, headers, data);
+            return GetResponseAsync(request, cancellationToken);
         }
 
-        private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        private Task<Response> GetResponseAsync(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        {
+            using var request = CreateRequest(method, uri, headers, data);
+            return GetResponseAsync(request, cancellationToken);
+        }
+
+
+
+
+
+
+        public async Task<Response<T>> GetResponseAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             string content = null;
             HttpStatusCode statusCode = HttpStatusCode.BadRequest;
             string reasonPhrase = null;
             try
             {
-                using var request = CreateRequest(method, uri, headers, data);
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -228,6 +162,21 @@ namespace DustyPig.REST
                 return ret;
             }
         }
+
+
+        private Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        {
+            using var request = CreateRequest(method, url, headers, data);
+            return GetResponseAsync<T>(request, cancellationToken);
+        }
+
+        private Task<Response<T>> GetResponseAsync<T>(HttpMethod method, Uri uri, IDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+        {
+            using var request = CreateRequest(method, uri, headers, data);
+            return GetResponseAsync<T>(request, cancellationToken);
+        }
+
+
 
 
 

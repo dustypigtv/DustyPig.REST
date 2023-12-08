@@ -142,15 +142,19 @@ namespace DustyPig.REST
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
 #endif
                 response.EnsureSuccessStatusCode();
-                var ret = JsonConvert.DeserializeObject<T>(content);
-                return new Response<T>
+                
+                var ret = new Response<T>
                 {
                     Success = true,
-                    Data = ret,
                     StatusCode = statusCode,
                     ReasonPhrase = reasonPhrase,
                     RawContent = IncludeRawContentInResponse ? content : null
                 };
+
+                if(!string.IsNullOrWhiteSpace(content))
+                    ret.Data = JsonConvert.DeserializeObject<T>(content);
+
+                return ret;
             }
             catch (Exception ex)
             {

@@ -136,7 +136,11 @@ namespace DustyPig.REST
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
+#if NET5_0_OR_GREATER
+                content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+#else
                 content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+#endif
                 response.EnsureSuccessStatusCode();
                 var ret = JsonConvert.DeserializeObject<T>(content);
                 return new Response<T>

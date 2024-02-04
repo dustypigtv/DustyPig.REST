@@ -77,11 +77,7 @@ namespace DustyPig.REST
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
-#if NET5_0_OR_GREATER
                 content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-#else
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-#endif
                 response.EnsureSuccessStatusCode();
                 return new Response
                 {
@@ -136,13 +132,9 @@ namespace DustyPig.REST
                 using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
-#if NET5_0_OR_GREATER
                 content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-#else
-                content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-#endif
                 response.EnsureSuccessStatusCode();
-                
+
                 var ret = new Response<T>
                 {
                     Success = true,
@@ -151,7 +143,7 @@ namespace DustyPig.REST
                     RawContent = IncludeRawContentInResponse ? content : null
                 };
 
-                if(!string.IsNullOrWhiteSpace(content))
+                if (!string.IsNullOrWhiteSpace(content))
                     ret.Data = JsonConvert.DeserializeObject<T>(content);
 
                 return ret;
@@ -274,23 +266,21 @@ namespace DustyPig.REST
         public virtual Task<Response<T>> PutAsync<T>(Uri uri, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Put, uri, requestHeaders, data, cancellationToken);
 
-        
 
-#if NET6_0_OR_GREATER
+
 
         public virtual Task<Response> PatchAsync(string url, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
 
-       public virtual Task<Response> PatchAsync(Uri uri, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
-            GetResponseAsync(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
+        public virtual Task<Response> PatchAsync(Uri uri, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+             GetResponseAsync(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
 
-       
+
         public virtual Task<Response<T>> PatchAsync<T>(string url, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
 
         public virtual Task<Response<T>> PatchAsync<T>(Uri uri, object data, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
 
-#endif
     }
 }

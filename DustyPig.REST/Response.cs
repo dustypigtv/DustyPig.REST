@@ -7,7 +7,7 @@ namespace DustyPig.REST
     {
         public bool Success { get; set; }
 
-        public HttpStatusCode StatusCode { get; set; }
+        public HttpStatusCode? StatusCode { get; set; }
 
         public string ReasonPhrase { get; set; }
 
@@ -17,8 +17,13 @@ namespace DustyPig.REST
 
         public void ThrowIfError()
         {
-            if (!Success)
+            if (Success)
+                return;
+
+            if(Error != null)
                 throw Error;
+
+            throw new Exception("Unknown Error");
         }
     }
 

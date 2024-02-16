@@ -315,18 +315,23 @@ namespace DustyPig.REST
 
 
 
-        public virtual Task<Response> DeleteAsync(string url, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
-            GetResponseAsync(HttpMethod.Delete, url, requestHeaders, null, cancellationToken);
+       /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
+        public virtual Task<Response> DeleteAsync(string url, IDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
+           GetResponseAsync(HttpMethod.Delete, url, requestHeaders, null, cancellationToken);
 
-        public virtual Task<Response> DeleteAsync(Uri uri, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+        /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
+        public virtual Task<Response> DeleteAsync(Uri uri, IDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync(HttpMethod.Delete, uri, requestHeaders, null, cancellationToken);
 
 
-        public virtual Task<Response<T>> DeleteAsync<T>(string url,IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+        /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
+        public virtual Task<Response<T>> DeleteAsync<T>(string url, IDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Delete, url, requestHeaders, null, cancellationToken);
 
-        public virtual Task<Response<T>> DeleteAsync<T>(Uri uri, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+        /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
+        public virtual Task<Response<T>> DeleteAsync<T>(Uri uri, IDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Delete, uri, requestHeaders, null, cancellationToken);
+
 
 
 

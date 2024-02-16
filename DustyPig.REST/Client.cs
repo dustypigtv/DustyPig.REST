@@ -20,31 +20,34 @@ namespace DustyPig.REST
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
 
+        public Client() { }
+
+        public Client(Uri baseAddress) => _httpClient.BaseAddress = baseAddress;
+
         public void Dispose()
         {
             _httpClient.Dispose();
             GC.SuppressFinalize(this);
         }
 
-        public Uri BaseAddress
-        {
-            get => _httpClient.BaseAddress;
-            set => _httpClient.BaseAddress = value;
-        }
-
-        public TimeSpan Timeout
-        {
-            get => _httpClient.Timeout;
-            set => _httpClient.Timeout = value;
-        }
-
+        /// <summary>
+        /// Accesses the underlying <see cref="System.Net.Http.HttpClient"/> for configurating options
+        /// </summary>
+        public HttpClient HttpClient => _httpClient;
+        
         public bool AutoThrowIfError { get; set; }
 
         public bool IncludeRawContentInResponse { get; set; }
 
-        public HttpRequestHeaders DefaultRequestHeaders => _httpClient.DefaultRequestHeaders;
+        /// <summary>
+        /// When a network error occurs, how many times to retry the api call. Error results from api endopints are not retried. Default = 1
+        /// </summary>
+        public int RetryCount { get; set; } = 1;
 
-
+        /// <summary>
+        /// Number of milliseconds between retries. Default = 250
+        /// </summary>
+        public int RetryDelay { get; set; } = 250;
 
 
 
@@ -72,6 +75,28 @@ namespace DustyPig.REST
                 request.Content = new StringContent(JsonSerializer.Serialize(data, _jsonSerializerOptions), Encoding.UTF8, "application/json");
         }
 
+        private static HttpRequestMessage CloneRequest(HttpRequestMessage request)
+        {
+            //Can't send the same request twice, so just build a copy for retries
+            var ret = new HttpRequestMessage(request.Method, request.RequestUri)
+            {
+                Content = request.Content,
+                Version = request.Version,
+                VersionPolicy = request.VersionPolicy
+            };
+
+            foreach (var header in request.Headers)
+                ret.Headers.TryAddWithoutValidation(header.Key, header.Value);
+
+            foreach (var option in request.Options)
+                ret.Options.TryAdd(option.Key, option.Value);
+
+            //Deprecated
+            //foreach (var property in request.Properties)
+            //    ret.Properties.Add(property.Key, property.Value);
+
+            return ret;
+        }
 
 
 
@@ -80,20 +105,53 @@ namespace DustyPig.REST
         {
             HttpStatusCode? statusCode = null;
             string reasonPhrase = null;
-            try
+            string content = null;
+            int previousTries = 0;
+            while (true)
             {
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                response.EnsureSuccessStatusCode();
-                return new Response
+                try
                 {
-                    Success = true,
-                    StatusCode = response.StatusCode,
-                    ReasonPhrase = response.ReasonPhrase
-                };
+                    using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    statusCode = response.StatusCode;
+                    reasonPhrase = response.ReasonPhrase;
+
+                    if (IncludeRawContentInResponse)
+                        content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                    
+                    response.EnsureSuccessStatusCode();
+                    return new Response
+                    {
+                        Success = true,
+                        StatusCode = response.StatusCode,
+                        ReasonPhrase = response.ReasonPhrase,
+                        RawContent = content
+                    };
+                }
+                catch (Exception ex)
+                {
+                    //If statusCode == null, there was a network error, retries are permitted
+                    if (previousTries < RetryCount && statusCode == null)
+                    {
+                        try
+                        {
+                            if (RetryDelay > 0)
+                                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            return BuildErrorResponse(ex);
+                        }
+                        request = CloneRequest(request);
+                        previousTries++;
+                    }
+                    else
+                    {
+                        return BuildErrorResponse(ex);
+                    }
+                }
             }
-            catch (Exception ex)
+
+            Response BuildErrorResponse(Exception ex)
             {
                 var ret = string.IsNullOrWhiteSpace(reasonPhrase)
                     ? new Response { Error = ex }
@@ -101,6 +159,7 @@ namespace DustyPig.REST
 
                 ret.StatusCode = statusCode;
                 ret.ReasonPhrase = reasonPhrase;
+                ret.RawContent = content;
 
                 if (AutoThrowIfError)
                     ret.ThrowIfError();
@@ -131,27 +190,53 @@ namespace DustyPig.REST
             string content = null;
             HttpStatusCode? statusCode = null;
             string reasonPhrase = null;
-            try
+            int previousTries = 0;
+            while (true)
             {
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-
-                if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
-                    content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-                response.EnsureSuccessStatusCode();
-
-                return new Response<T>
+                try
                 {
-                    Success = true,
-                    StatusCode = statusCode,
-                    ReasonPhrase = reasonPhrase,
-                    RawContent = IncludeRawContentInResponse ? content : null,
-                    Data = JsonSerializer.Deserialize<T>(content, _jsonSerializerOptions)
-                };
+                    using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                    statusCode = response.StatusCode;
+                    reasonPhrase = response.ReasonPhrase;
+
+                    if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
+                        content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+                    response.EnsureSuccessStatusCode();
+                    return new Response<T>
+                    {
+                        Success = true,
+                        StatusCode = statusCode,
+                        ReasonPhrase = reasonPhrase,
+                        RawContent = IncludeRawContentInResponse ? content : null,
+                        Data = JsonSerializer.Deserialize<T>(content, _jsonSerializerOptions)
+                    };
+                }
+                catch (Exception ex)
+                {
+                    //If statusCode == null, there was a network error, retries are permitted
+                    if (previousTries < RetryCount && statusCode == null)
+                    {
+                        try
+                        {
+                            if (RetryDelay > 0)
+                                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                        }
+                        catch
+                        {
+                            return BuildErrorResponse(ex);
+                        }
+                        request = CloneRequest(request);
+                        previousTries++;
+                    }
+                    else
+                    {
+                        return BuildErrorResponse(ex);
+                    }
+                }
             }
-            catch (Exception ex)
+
+            Response<T> BuildErrorResponse(Exception ex)
             {
                 var ret = string.IsNullOrWhiteSpace(reasonPhrase)
                     ? new Response<T> { Error = ex }
@@ -242,6 +327,12 @@ namespace DustyPig.REST
 
         public virtual Task<Response<T>> DeleteAsync<T>(Uri uri, IDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
             GetResponseAsync<T>(HttpMethod.Delete, uri, requestHeaders, null, cancellationToken);
+
+
+
+
+
+
 
 
 

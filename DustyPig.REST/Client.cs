@@ -106,6 +106,7 @@ namespace DustyPig.REST
             string reasonPhrase = null;
             string content = null;
             int previousTries = 0;
+            var retryAfter = TimeSpan.Zero;
             while (true)
             {
                 try
@@ -113,6 +114,7 @@ namespace DustyPig.REST
                     using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                     statusCode = response.StatusCode;
                     reasonPhrase = response.ReasonPhrase;
+                    retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
 
                     if (IncludeRawContentInResponse)
                         content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -129,12 +131,13 @@ namespace DustyPig.REST
                 catch (Exception ex)
                 {
                     //If statusCode == null, there was a network error, retries are permitted
-                    if (previousTries < RetryCount && statusCode == null)
+                    if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
                     {
                         try
                         {
-                            if (RetryDelay > 0)
-                                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                            int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
+                            if (delay > 0)
+                                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                         }
                         catch
                         {
@@ -190,6 +193,7 @@ namespace DustyPig.REST
             HttpStatusCode? statusCode = null;
             string reasonPhrase = null;
             int previousTries = 0;
+            var retryAfter = TimeSpan.Zero;
             while (true)
             {
                 try
@@ -197,6 +201,7 @@ namespace DustyPig.REST
                     using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                     statusCode = response.StatusCode;
                     reasonPhrase = response.ReasonPhrase;
+                    retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
 
                     if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
                         content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -214,12 +219,13 @@ namespace DustyPig.REST
                 catch (Exception ex)
                 {
                     //If statusCode == null, there was a network error, retries are permitted
-                    if (previousTries < RetryCount && statusCode == null)
+                    if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
                     {
                         try
                         {
-                            if (RetryDelay > 0)
-                                await Task.Delay(RetryDelay, cancellationToken).ConfigureAwait(false);
+                            int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
+                            if (delay > 0)
+                                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
                         }
                         catch
                         {

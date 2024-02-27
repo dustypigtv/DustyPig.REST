@@ -23,6 +23,8 @@ namespace DustyPig.REST
 
         public Client(Uri baseAddress) => _httpClient.BaseAddress = baseAddress;
 
+        public Client(string baseAddress) => _httpClient.BaseAddress = new Uri(baseAddress);
+
         public void Dispose()
         {
             _httpClient.Dispose();

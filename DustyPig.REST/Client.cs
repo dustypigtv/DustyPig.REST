@@ -41,7 +41,17 @@ namespace DustyPig.REST
         public bool IncludeRawContentInResponse { get; set; }
 
         /// <summary>
-        /// When a network error occurs, how many times to retry the api call. Error results from api endopints are not retried. Default = 1
+        /// When an error occurs, how many times to retry the api call.
+        /// This there are 2 events that can trigger a retry:
+        /// 
+        ///      1. There is an error connecting to the server (such as a network layer error).
+        ///
+        ///      2. The connection succeeded, but the server sent HttpStatusCode.TooManyRequests (429). 
+        ///      In this case, the client will attempt to get the RetryAfter header, and if found, 
+        ///      the delay will be the maximum of the header and the <see cref="RetryDelay"/>. 
+        ///      Otherwise, the retry delay will just be <see cref="RetryDelay"/>.
+        /// 
+        /// Default = 1
         /// </summary>
         public int RetryCount { get; set; } = 1;
 

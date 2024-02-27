@@ -44,17 +44,23 @@ namespace DustyPig.REST
 
         /// <summary>
         /// When an error occurs, how many times to retry the api call.
-        /// There are 2 events that can trigger a retry:
-        /// 
-        ///      1. There is an error connecting to the server (such as a network layer error).
-        ///
-        ///      2. The connection succeeded, but the server sent HttpStatusCode.TooManyRequests (429). 
-        ///      In this case, the client will attempt to get the RetryAfter header, and if found, 
-        ///      the delay will be the maximum of the header and the <see cref="RetryDelay"/>. 
-        ///      Otherwise, the retry delay will just be <see cref="RetryDelay"/>.
-        /// 
+        /// <br />
         /// Default = 1
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// There are 2 events that can trigger a retry:
+        /// </para>
+        /// <para>
+        /// 1. There is an error connecting to the server (such as a network layer error).
+        /// </para>
+        /// <para>
+        /// 2. The connection succeeded, but the server sent HttpStatusCode.TooManyRequests (429). 
+        ///    In this case, the client will attempt to get the RetryAfter header, and if found, 
+        ///    the delay will be the maximum of the header and the <see cref="RetryDelay"/>. 
+        ///    Otherwise, the retry delay will just be <see cref="RetryDelay"/>.
+        /// </para>
+        /// </remarks>
         public int RetryCount 
         {
             get => _retryCount;
@@ -68,13 +74,16 @@ namespace DustyPig.REST
 
 
         /// <summary>
-        /// Number of milliseconds between retries. Default = 250
+        /// Number of milliseconds between retries.
+        /// <br />
+        /// Default = 250
         /// </summary>
         public int RetryDelay
         {
             get => _retryDelay;
             set
             {
+                
                 ThrowIfNegative(value);
                 _retryDelay = value;
             }

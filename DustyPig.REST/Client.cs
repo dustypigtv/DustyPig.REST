@@ -186,6 +186,7 @@ namespace DustyPig.REST
                 catch (Exception ex)
                 {
                     //If statusCode == null, there was a network error, retries are permitted
+                    //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
                     if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
                     {
                         try
@@ -274,6 +275,7 @@ namespace DustyPig.REST
                 catch (Exception ex)
                 {
                     //If statusCode == null, there was a network error, retries are permitted
+                    //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
                     if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
                     {
                         try

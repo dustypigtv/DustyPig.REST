@@ -11,14 +11,15 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
 		<Authors>DustyPig.tv</Authors>
 		<Description>Base library for JSON REST API's used in DustyPig clients</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageProjectUrl>https://github.com/dustypigtv/DustyPig.REST</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/dustypigtv/DustyPig.REST.git</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
+		
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 		<IncludeSymbols>true</IncludeSymbols>
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>

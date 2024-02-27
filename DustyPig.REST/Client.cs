@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -15,8 +14,8 @@ public class Client : IDisposable
 {
     private readonly HttpClient _httpClient = new();
 
-    private int _retryCount = 1;
-    private int _retryDelay = 250;
+    private int _retryCount = 0;
+    private int _retryDelay = 0;
     private int _throttle = 0;
     private DateTime _nextCall = DateTime.MinValue;
 
@@ -51,7 +50,7 @@ public class Client : IDisposable
     /// <summary>
     /// When an error occurs, how many times to retry the api call.
     /// <br />
-    /// Default = 1
+    /// Default = 0
     /// </summary>
     /// <remarks>
     /// <para>
@@ -67,7 +66,7 @@ public class Client : IDisposable
     ///    Otherwise, the retry delay will just be <see cref="RetryDelay"/>.
     /// </para>
     /// </remarks>
-    public int RetryCount 
+    public int RetryCount
     {
         get => _retryCount;
         set
@@ -76,24 +75,24 @@ public class Client : IDisposable
             _retryCount = value;
         }
     }
-    
+
 
     /// <summary>
     /// Number of milliseconds between retries.
     /// <br />
-    /// Default = 250
+    /// Default = 0
     /// </summary>
     public int RetryDelay
     {
         get => _retryDelay;
         set
         {
-            
+
             ThrowIfNegative(value);
             _retryDelay = value;
         }
     }
-    
+
 
     /// <summary>
     /// Minimum number of milliseconds between api calls.
@@ -109,7 +108,7 @@ public class Client : IDisposable
             _throttle = value;
         }
     }
-    
+
 
 
     private static void ThrowIfNegative(int value)
@@ -117,7 +116,7 @@ public class Client : IDisposable
 #if NET8_0_OR_GREATER
         ArgumentOutOfRangeException.ThrowIfNegative(value);
 #else
-        if(value < 0)
+        if (value < 0)
             throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(value)} ('{value}') must be a non-negative value.");
 #endif
     }
@@ -188,7 +187,7 @@ public class Client : IDisposable
         return ret;
     }
 
-    
+
 
 
     public async Task<Response> GetResponseAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
@@ -202,7 +201,7 @@ public class Client : IDisposable
         {
             try
             {
-                if(_throttle > 0)
+                if (_throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;

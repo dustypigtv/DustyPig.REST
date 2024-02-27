@@ -20,7 +20,7 @@ namespace DustyPig.REST
             if (Success)
                 return;
 
-            if(Error != null)
+            if (Error != null)
                 throw Error;
 
             throw new Exception("Unknown Error");

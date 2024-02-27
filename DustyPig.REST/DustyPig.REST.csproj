@@ -11,7 +11,7 @@
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
-		<ContinousIntegrationBuild>true</ContinousIntegrationBuild>
+		<ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
 		<Authors>DustyPig.tv</Authors>
 		<Description>Base library for JSON REST API's used in DustyPig clients</Description>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -24,7 +24,6 @@
 		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<EmbedUntrackedSources>true</EmbedUntrackedSources>
-		<Deterministic>true</Deterministic>
 	</PropertyGroup>
 
 	<ItemGroup>

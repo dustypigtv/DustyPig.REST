@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -13,6 +14,11 @@ namespace DustyPig.REST;
 public class Client : IDisposable
 {
     private readonly HttpClient _httpClient = new();
+
+    private int _retryCount = 1;
+    private int _retryDelay = 250;
+    private int _throttle = 0;
+    private DateTime _nextCall = DateTime.MinValue;
 
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerDefaults.Web)
     {
@@ -70,8 +76,7 @@ public class Client : IDisposable
             _retryCount = value;
         }
     }
-    private int _retryCount = 1;
-
+    
 
     /// <summary>
     /// Number of milliseconds between retries.
@@ -88,8 +93,23 @@ public class Client : IDisposable
             _retryDelay = value;
         }
     }
-    private int _retryDelay = 250;
+    
 
+    /// <summary>
+    /// Minimum number of milliseconds between api calls.
+    /// <br />
+    /// Default = 0
+    /// </summary>
+    public int Throttle
+    {
+        get => _throttle;
+        set
+        {
+            ThrowIfNegative(value);
+            _throttle = value;
+        }
+    }
+    
 
 
     private static void ThrowIfNegative(int value)
@@ -103,6 +123,22 @@ public class Client : IDisposable
     }
 
 
+    private Task WaitForThrottle(CancellationToken cancellationToken)
+    {
+        if (_throttle > 0)
+        {
+            var wait = (_nextCall - DateTime.Now).Milliseconds;
+            if (wait > 0)
+                return Task.Delay(wait, cancellationToken);
+        }
+        return Task.CompletedTask;
+    }
+
+    private void SetNextCall()
+    {
+        if (_throttle > 0)
+            _nextCall = DateTime.Now.AddMilliseconds(_throttle);
+    }
 
 
     private static HttpRequestMessage CreateRequest(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data)
@@ -152,7 +188,7 @@ public class Client : IDisposable
         return ret;
     }
 
-
+    
 
 
     public async Task<Response> GetResponseAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
@@ -166,6 +202,8 @@ public class Client : IDisposable
         {
             try
             {
+                if(_throttle > 0)
+                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -175,6 +213,8 @@ public class Client : IDisposable
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
+                SetNextCall();
+
                 return new Response
                 {
                     Success = true,
@@ -185,6 +225,8 @@ public class Client : IDisposable
             }
             catch (Exception ex)
             {
+                SetNextCall();
+
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
                 if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
@@ -254,6 +296,8 @@ public class Client : IDisposable
         {
             try
             {
+                if (_throttle > 0)
+                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -263,6 +307,8 @@ public class Client : IDisposable
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
+                SetNextCall();
+
                 return new Response<T>
                 {
                     Success = true,
@@ -274,6 +320,8 @@ public class Client : IDisposable
             }
             catch (Exception ex)
             {
+                SetNextCall();
+
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
                 if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))

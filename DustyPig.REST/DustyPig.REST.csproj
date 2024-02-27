@@ -11,7 +11,6 @@
       <RepositoryType>git</RepositoryType>
       <GenerateDocumentationFile>true</GenerateDocumentationFile>
 	  <NoWarn>$(NoWarn);1591</NoWarn>
-	  <LangVersion>8</LangVersion>
 	  
       <!-- Leave the revision as zero, it's automatically set with github actions -->
 	  <Version>3.3.0.0</Version>

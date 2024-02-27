@@ -40,9 +40,11 @@ namespace DustyPig.REST
 
         public bool IncludeRawContentInResponse { get; set; }
 
+
+
         /// <summary>
         /// When an error occurs, how many times to retry the api call.
-        /// This there are 2 events that can trigger a retry:
+        /// There are 2 events that can trigger a retry:
         /// 
         ///      1. There is an error connecting to the server (such as a network layer error).
         ///
@@ -53,12 +55,44 @@ namespace DustyPig.REST
         /// 
         /// Default = 1
         /// </summary>
-        public int RetryCount { get; set; } = 1;
+        public int RetryCount 
+        {
+            get => _retryCount;
+            set
+            {
+                ThrowIfNegative(value);
+                _retryCount = value;
+            }
+        }
+        private int _retryCount = 1;
+
 
         /// <summary>
         /// Number of milliseconds between retries. Default = 250
         /// </summary>
-        public int RetryDelay { get; set; } = 250;
+        public int RetryDelay
+        {
+            get => _retryDelay;
+            set
+            {
+                ThrowIfNegative(value);
+                _retryDelay = value;
+            }
+        }
+        private int _retryDelay = 250;
+
+
+
+        private static void ThrowIfNegative(int value)
+        {
+#if NET8_0_OR_GREATER
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+#else
+            if(value < 0)
+                throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(value)} ('{value}') must be a non-negative value.");
+#endif
+        }
+
 
 
 

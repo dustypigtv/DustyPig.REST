@@ -21,9 +21,10 @@ public class Response
             return;
 
         if (Error != null)
-            throw Error;
+            throw new RestException(StatusCode, ReasonPhrase, RawContent, Error);
 
-        throw new Exception("Unknown Error");
+        string errorMsg = string.IsNullOrWhiteSpace(ReasonPhrase) ? "Unknown Error" : ReasonPhrase;
+        throw new RestException(null, null, null, new Exception(errorMsg));
     }
 }
 

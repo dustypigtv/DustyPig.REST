@@ -34,15 +34,20 @@ public class Client : IDisposable
     /// <param name="httpClient">The shared <see cref="HttpClient"/> this REST configuration should use</param>
     public Client(HttpClient httpClient)
     {
-        _disposeOfHttpclient = httpClient == null;
-        _httpClient = httpClient ?? new();
+        if(httpClient == null)
+            throw new ArgumentNullException(nameof(httpClient));
+        _httpClient = httpClient;
+        _disposeOfHttpclient = false;
     }
 
     /// <summary>
     /// Creates a configuration that uses its own internal <see cref="HttpClient"/>. When using this constructor, <see cref="Dispose"/> should be called.
     /// </summary>
-    public Client() : this(null) { }
-
+    public Client()
+    {
+        _httpClient = new();
+        _disposeOfHttpclient = true;
+    }
 
 
    

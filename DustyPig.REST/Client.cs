@@ -12,8 +12,10 @@ namespace DustyPig.REST;
 
 public class Client : IDisposable
 {
-    private readonly HttpClient _httpClient = new();
+    private readonly HttpClient _httpClient;
+    private readonly bool _disposeOfHttpclient = false;
 
+    private readonly Dictionary<string, string> __defaultHeaders = [];
     private int _retryCount = 0;
     private int _retryDelay = 0;
     private int _throttle = 0;
@@ -24,27 +26,67 @@ public class Client : IDisposable
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
-    public Client() { }
-
-    public Client(Uri baseAddress) => _httpClient.BaseAddress = baseAddress;
-
-    public Client(string baseAddress) => _httpClient.BaseAddress = new Uri(baseAddress);
-
-    public void Dispose()
+    
+    
+    /// <summary
+    /// Creates a configurtion that uses a shared <see cref="HttpClient"/>
+    /// </summary
+    /// <param name="httpClient">The shared <see cref="HttpClient"/> this REST configuration should use</param>
+    public Client(HttpClient httpClient)
     {
-        _httpClient.Dispose();
-        GC.SuppressFinalize(this);
+        _disposeOfHttpclient = httpClient == null;
+        _httpClient = httpClient ?? new();
     }
 
     /// <summary>
-    /// Accesses the underlying <see cref="System.Net.Http.HttpClient"/> for configurating options
+    /// Creates a configuration that uses its own internal <see cref="HttpClient"/>. When using this constructor, <see cref="Dispose"/> should be called.
     /// </summary>
-    public HttpClient HttpClient => _httpClient;
+    public Client() : this(null) { }
+
+
+
+   
+
+
+
+
+    /// <summary>
+    /// This will dispose of the internal <see cref="HttpClient"/> if a shared instance was not provided to the constructor
+    /// </summary>
+    public void Dispose()
+    {
+        if (_disposeOfHttpclient)
+        {
+            _httpClient.Dispose();
+            GC.SuppressFinalize(this);
+        }
+    }
+
+
+
+
+
 
     public bool AutoThrowIfError { get; set; }
 
     public bool IncludeRawContentInResponse { get; set; }
 
+
+    //In case the app uses a shared HttpClient, don't assign the base address to the HttpClient instance
+    
+    /// <summary>
+    /// Gets or sets the base address of Uniform Resource Identifier (URI) of the Internet resource used when sending requests
+    /// </summary>
+    public Uri BaseAddress { get; set; }
+
+
+
+    //In case the app uses a shared HttpClient, don't assign the default headers to the HttpClient instance
+
+    /// <summary>
+    /// The headers to be sent with each request
+    /// </summary>
+    public IDictionary<string, string> DefaultRequestHeaders => __defaultHeaders;
 
 
     /// <summary>
@@ -140,22 +182,36 @@ public class Client : IDisposable
     }
 
 
-    private static HttpRequestMessage CreateRequest(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data)
+    /// <summary>
+    /// Combines the url with BaseAddress (if not null) and returns the full Uri
+    /// </summary>
+    public Uri GetFullUri(string url) => BaseAddress == null ? new Uri(url) : new Uri(BaseAddress, url);
+
+    /// <summary>
+    /// Combines the uri with BaseAddress (if not null) and returns the full Uri
+    /// </summary>
+    public Uri GetFullUri(Uri uri) => BaseAddress == null ? uri : new Uri(BaseAddress, uri);
+
+
+    private HttpRequestMessage CreateRequest(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data)
     {
-        var request = new HttpRequestMessage(method, url);
+        var request = new HttpRequestMessage(method, GetFullUri(url));
         AddHeadersAndContent(request, headers, data);
         return request;
     }
 
-    private static HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string> headers, object data)
+    private HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string> headers, object data)
     {
-        var request = new HttpRequestMessage(method, uri);
+        var request = new HttpRequestMessage(method, GetFullUri(uri));
         AddHeadersAndContent(request, headers, data);
         return request;
     }
 
-    private static void AddHeadersAndContent(HttpRequestMessage request, IReadOnlyDictionary<string, string> headers, object data)
-    {
+    private void AddHeadersAndContent(HttpRequestMessage request, IReadOnlyDictionary<string, string> headers, object data)
+    {      
+        foreach(var header in __defaultHeaders)
+            request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+
         if (headers != null)
             foreach (var header in headers)
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
@@ -164,7 +220,7 @@ public class Client : IDisposable
             request.Content = new StringContent(JsonSerializer.Serialize(data, _jsonSerializerOptions), Encoding.UTF8, "application/json");
     }
 
-    private static HttpRequestMessage CloneRequest(HttpRequestMessage request)
+    public static HttpRequestMessage CloneRequest(HttpRequestMessage request)
     {
         //Can't send the same request twice, so just build a copy for retries
         var ret = new HttpRequestMessage(request.Method, request.RequestUri)
@@ -179,10 +235,6 @@ public class Client : IDisposable
 
         foreach (var option in request.Options)
             ret.Options.TryAdd(option.Key, option.Value);
-
-        //Deprecated
-        //foreach (var property in request.Properties)
-        //    ret.Properties.Add(property.Key, property.Value);
 
         return ret;
     }

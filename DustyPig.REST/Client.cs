@@ -19,7 +19,7 @@ public class Client : IDisposable
     private int _retryCount = 0;
     private int _retryDelay = 0;
     private int _throttle = 0;
-    private DateTime _nextCall = DateTime.MinValue;
+    private DateTime _lastCall = DateTime.MinValue;
 
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerDefaults.Web)
     {
@@ -173,17 +173,19 @@ public class Client : IDisposable
     {
         if (_throttle > 0)
         {
-            var wait = (_nextCall - DateTime.Now).Milliseconds;
+            var wait = (DateTime.Now - _lastCall).Milliseconds;
             if (wait > 0)
                 return Task.Delay(wait, cancellationToken);
         }
         return Task.CompletedTask;
     }
 
-    private void SetNextCall()
+    private void SetLastCallTime()
     {
         if (_throttle > 0)
-            _nextCall = DateTime.Now.AddMilliseconds(_throttle);
+            _lastCall = DateTime.Now;
+        else
+            _lastCall = DateTime.MinValue;
     }
 
 
@@ -269,7 +271,7 @@ public class Client : IDisposable
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                SetNextCall();
+                SetLastCallTime();
 
                 return new Response
                 {
@@ -281,7 +283,7 @@ public class Client : IDisposable
             }
             catch (Exception ex)
             {
-                SetNextCall();
+                SetLastCallTime();
 
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
@@ -363,7 +365,7 @@ public class Client : IDisposable
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                SetNextCall();
+                SetLastCallTime();
 
                 return new Response<T>
                 {
@@ -376,7 +378,7 @@ public class Client : IDisposable
             }
             catch (Exception ex)
             {
-                SetNextCall();
+                SetLastCallTime();
 
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted

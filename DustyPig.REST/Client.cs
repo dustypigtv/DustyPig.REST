@@ -34,8 +34,8 @@ public class Client : IDisposable
     /// <param name="httpClient">The shared <see cref="HttpClient"/> this REST configuration should use</param>
     public Client(HttpClient httpClient)
     {
-        if(httpClient == null)
-            throw new ArgumentNullException(nameof(httpClient));
+        ArgumentNullException.ThrowIfNull(httpClient);
+
         _httpClient = httpClient;
         _disposeOfHttpclient = false;
     }

@@ -542,7 +542,7 @@ public class Client : IDisposable
         return GetStringAsync(request, cancellationToken);
     }
 
-    public virtual Task<Response<string>> GetStringAsync<T>(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    public virtual Task<Response<string>> GetStringAsync(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
     {
         var request = CreateRequest(HttpMethod.Get, uri, requestHeaders, null);
         return GetStringAsync(request, cancellationToken);
@@ -635,7 +635,7 @@ public class Client : IDisposable
         return GetDataAsync(request, cancellationToken);
     }
 
-    public virtual Task<Response<byte[]>> GetDataAsync<T>(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    public virtual Task<Response<byte[]>> GetDataAsync(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
     {
         var request = CreateRequest(HttpMethod.Get, uri, requestHeaders, null);
         return GetDataAsync(request, cancellationToken);

@@ -458,6 +458,193 @@ public class Client : IDisposable
 
 
 
+    public virtual async Task<Response<string>> GetStringAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
+    {
+        string content = null;
+        HttpStatusCode? statusCode = null;
+        string reasonPhrase = null;
+        int previousTries = 0;
+        var retryAfter = TimeSpan.Zero;
+        while (true)
+        {
+            try
+            {
+                if (_throttle > 0)
+                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                statusCode = response.StatusCode;
+                reasonPhrase = response.ReasonPhrase;
+                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
+
+                if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
+                    content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+                response.EnsureSuccessStatusCode();
+                SetLastCallTime();
+
+                return new Response<string>
+                {
+                    Success = true,
+                    StatusCode = statusCode,
+                    ReasonPhrase = reasonPhrase,
+                    RawContent = IncludeRawContentInResponse ? content : null,
+                    Data = content
+                };
+            }
+            catch (Exception ex)
+            {
+                SetLastCallTime();
+
+                //If statusCode == null, there was a network error, retries are permitted
+                //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
+                if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
+                {
+                    try
+                    {
+                        int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
+                        if (delay > 0)
+                            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        return BuildErrorResponse(ex);
+                    }
+                    request = CloneRequest(request);
+                    previousTries++;
+                }
+                else
+                {
+                    return BuildErrorResponse(ex);
+                }
+            }
+        }
+
+        Response<string> BuildErrorResponse(Exception ex)
+        {
+            var ret = new Response<string>
+            {
+                Error = ex,
+                StatusCode = statusCode,
+                ReasonPhrase = reasonPhrase,
+                RawContent = IncludeRawContentInResponse ? content : null
+            };
+
+            if (AutoThrowIfError)
+                ret.ThrowIfError();
+
+            return ret;
+        }
+    }
+
+    public virtual Task<Response<string>> GetStringAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    {
+        var request = CreateRequest(HttpMethod.Get, url, requestHeaders, null);
+        return GetStringAsync(request, cancellationToken);
+    }
+
+    public virtual Task<Response<string>> GetStringAsync<T>(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    {
+        var request = CreateRequest(HttpMethod.Get, uri, requestHeaders, null);
+        return GetStringAsync(request, cancellationToken);
+    }
+
+
+
+
+    public virtual async Task<Response<byte[]>> GetDataAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
+    {
+        byte[] content = null;
+        HttpStatusCode? statusCode = null;
+        string reasonPhrase = null;
+        int previousTries = 0;
+        var retryAfter = TimeSpan.Zero;
+        while (true)
+        {
+            try
+            {
+                if (_throttle > 0)
+                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                statusCode = response.StatusCode;
+                reasonPhrase = response.ReasonPhrase;
+                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
+
+                if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
+                    content = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+
+                response.EnsureSuccessStatusCode();
+                SetLastCallTime();
+
+                return new Response<byte[]>
+                {
+                    Success = true,
+                    StatusCode = statusCode,
+                    ReasonPhrase = reasonPhrase,
+                    RawContent = IncludeRawContentInResponse ? Encoding.UTF8.GetString(content) : null,
+                    Data = content
+                };
+            }
+            catch (Exception ex)
+            {
+                SetLastCallTime();
+
+                //If statusCode == null, there was a network error, retries are permitted
+                //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
+                if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
+                {
+                    try
+                    {
+                        int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
+                        if (delay > 0)
+                            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        return BuildErrorResponse(ex);
+                    }
+                    request = CloneRequest(request);
+                    previousTries++;
+                }
+                else
+                {
+                    return BuildErrorResponse(ex);
+                }
+            }
+        }
+
+        Response<byte[]> BuildErrorResponse(Exception ex)
+        {
+            var ret = new Response<byte[]>
+            {
+                Error = ex,
+                StatusCode = statusCode,
+                ReasonPhrase = reasonPhrase,
+                RawContent = IncludeRawContentInResponse ? Encoding.UTF8.GetString(content) : null
+            };
+
+            if (AutoThrowIfError)
+                ret.ThrowIfError();
+
+            return ret;
+        }
+    }
+
+    public virtual Task<Response<byte[]>> GetDataAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    {
+        var request = CreateRequest(HttpMethod.Get, url, requestHeaders, null);
+        return GetDataAsync(request, cancellationToken);
+    }
+
+    public virtual Task<Response<byte[]>> GetDataAsync<T>(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    {
+        var request = CreateRequest(HttpMethod.Get, uri, requestHeaders, null);
+        return GetDataAsync(request, cancellationToken);
+    }
+
+
+
+
+
     public virtual Task<Response> HeadAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Head, url, requestHeaders, null, cancellationToken);
 

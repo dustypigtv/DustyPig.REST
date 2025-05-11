@@ -68,7 +68,10 @@ public class Client : IDisposable
     }
 
 
-
+    /// <summary>
+    /// The <see cref="HttpClient"/> used by this class
+    /// </summary>
+    public HttpClient HttpClient => _httpClient;
 
 
 

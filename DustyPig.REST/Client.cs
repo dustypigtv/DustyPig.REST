@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -225,9 +226,9 @@ public class Client : IDisposable
         if (headers != null)
             foreach (var header in headers)
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-
+               
         if (data != null)
-            request.Content = new StringContent(JsonSerializer.Serialize(data, _jsonSerializerOptions), Encoding.UTF8, "application/json");
+            request.Content = new StringContent(JsonSerializer.Serialize(data, _jsonSerializerOptions), new MediaTypeHeaderValue("application/json"));
     }
 
     public static HttpRequestMessage CloneRequest(HttpRequestMessage request)

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Mime;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -227,25 +226,9 @@ public class Client : IDisposable
         if (headers != null)
             foreach (var header in headers)
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
-
-
-
-        if (data == null)
-        {
-            //Only encountered this problem on android, but calling delete without a content-type header causes the 
-            //client to not even try the network, it just returns 415
-            bool addHeader =
-               request.Method == HttpMethod.Post ||
-               request.Method == HttpMethod.Put ||
-               request.Method == HttpMethod.Delete ||
-               request.Method == HttpMethod.Patch;
-            if (addHeader)
-                data = string.Empty;
-        }
-
-
+               
         if (data != null)
-            request.Content = new StringContent(JsonSerializer.Serialize(data, _jsonSerializerOptions), new MediaTypeHeaderValue(MediaTypeNames.Application.Json));
+            request.Content = new StringContent(JsonSerializer.Serialize(data, _jsonSerializerOptions), new MediaTypeHeaderValue("application/json"));
     }
         
 

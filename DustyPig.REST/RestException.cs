@@ -5,7 +5,7 @@ namespace DustyPig.REST;
 
 public class RestException : Exception
 {
-    internal RestException(HttpStatusCode? statusCode, string reasonPhrase, string rawContent, Exception ex) : base(ex.Message, ex)
+    internal RestException(HttpStatusCode? statusCode, string? reasonPhrase, string? rawContent, Exception ex) : base(ex.Message, ex)
     {
         StatusCode = statusCode;
         ReasonPhrase = reasonPhrase;
@@ -14,7 +14,7 @@ public class RestException : Exception
 
     public HttpStatusCode? StatusCode { get; }
 
-    public string ReasonPhrase { get; }
+    public string? ReasonPhrase { get; }
 
-    public string RawContent { get; }
+    public string? RawContent { get; }
 }

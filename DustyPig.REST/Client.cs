@@ -12,12 +12,11 @@ using System.Threading.Tasks;
 
 namespace DustyPig.REST;
 
-public class Client : IDisposable
+public class Client(HttpClient httpClient)
 {
-    private readonly HttpClient _httpClient;
-    private readonly bool _disposeOfHttpclient = false;
+    private readonly HttpClient _httpClient = httpClient;
 
-    private readonly Dictionary<string, string> __defaultHeaders = [];
+    private readonly Dictionary<string, string> _defaultHeaders = [];
     private int _retryCount = 0;
     private int _retryDelay = 0;
     private int _throttle = 0;
@@ -27,41 +26,6 @@ public class Client : IDisposable
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
-
-    
-    
-    /// <summary
-    /// Creates a configurtion that uses a shared <see cref="HttpClient"/>
-    /// </summary
-    /// <param name="httpClient">The shared <see cref="HttpClient"/> this REST configuration should use</param>
-    public Client(HttpClient httpClient)
-    {
-        ArgumentNullException.ThrowIfNull(httpClient);
-        _httpClient = httpClient;
-    }
-
-
-
-
-
-    /// <summary>
-    /// This will dispose of the internal <see cref="HttpClient"/> if a shared instance was not provided to the constructor
-    /// </summary>
-    public void Dispose()
-    {
-        if (_disposeOfHttpclient)
-        {
-            _httpClient.Dispose();
-            GC.SuppressFinalize(this);
-        }
-    }
-
-
-    /// <summary>
-    /// The <see cref="HttpClient"/> used by this class
-    /// </summary>
-    public HttpClient HttpClient => _httpClient;
-
 
 
     public bool AutoThrowIfError { get; set; }
@@ -74,7 +38,7 @@ public class Client : IDisposable
     /// <summary>
     /// Gets or sets the base address of Uniform Resource Identifier (URI) of the Internet resource used when sending requests
     /// </summary>
-    public Uri BaseAddress { get; set; }
+    public Uri? BaseAddress { get; set; }
 
 
 
@@ -83,7 +47,7 @@ public class Client : IDisposable
     /// <summary>
     /// The headers to be sent with each request
     /// </summary>
-    public IDictionary<string, string> DefaultRequestHeaders => __defaultHeaders;
+    public IDictionary<string, string> DefaultRequestHeaders => _defaultHeaders;
 
 
     /// <summary>
@@ -192,23 +156,23 @@ public class Client : IDisposable
     public Uri GetFullUri(Uri uri) => BaseAddress == null ? uri : new Uri(BaseAddress, uri);
 
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data)
+    private HttpRequestMessage CreateRequest(HttpMethod method, string url, IReadOnlyDictionary<string, string>? headers, object? data)
     {
         var request = new HttpRequestMessage(method, GetFullUri(url));
         AddHeadersAndContent(request, headers, data);
         return request;
     }
 
-    private HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string> headers, object data)
+    private HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string>? headers, object? data)
     {
         var request = new HttpRequestMessage(method, GetFullUri(uri));
         AddHeadersAndContent(request, headers, data);
         return request;
     }
 
-    private void AddHeadersAndContent(HttpRequestMessage request, IReadOnlyDictionary<string, string> headers, object data)
+    private void AddHeadersAndContent(HttpRequestMessage request, IReadOnlyDictionary<string, string>? headers, object? data)
     {
-        foreach (var header in __defaultHeaders)
+        foreach (var header in _defaultHeaders)
             request.Headers.TryAddWithoutValidation(header.Key, header.Value);
 
         if (headers != null)
@@ -259,8 +223,8 @@ public class Client : IDisposable
     public async Task<Response> GetResponseAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
     {
         HttpStatusCode? statusCode = null;
-        string reasonPhrase = null;
-        string content = null;
+        string? reasonPhrase = null;
+        string? content = null;
         int previousTries = 0;
         var retryAfter = TimeSpan.Zero;
         while (true)
@@ -333,13 +297,13 @@ public class Client : IDisposable
         }
     }
 
-    private async Task<Response> GetResponseAsync(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+    private async Task<Response> GetResponseAsync(HttpMethod method, string url, IReadOnlyDictionary<string, string>? headers, object? data, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(method, url, headers, data);
         return await GetResponseAsync(request, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<Response> GetResponseAsync(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+    private async Task<Response> GetResponseAsync(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string>? headers, object? data, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(method, uri, headers, data);
         return await GetResponseAsync(request, cancellationToken).ConfigureAwait(false);
@@ -352,9 +316,9 @@ public class Client : IDisposable
 
     public async Task<Response<T>> GetResponseAsync<T>(HttpRequestMessage request, CancellationToken cancellationToken = default)
     {
-        string content = null;
+        string? content = null;
         HttpStatusCode? statusCode = null;
-        string reasonPhrase = null;
+        string? reasonPhrase = null;
         int previousTries = 0;
         var retryAfter = TimeSpan.Zero;
         while (true)
@@ -385,7 +349,7 @@ public class Client : IDisposable
                     StatusCode = statusCode,
                     ReasonPhrase = reasonPhrase,
                     RawContent = IncludeRawContentInResponse ? content : null,
-                    Data = JsonSerializer.Deserialize<T>(content, _jsonSerializerOptions)
+                    Data = JsonSerializer.Deserialize<T>(content!, _jsonSerializerOptions)
                 };
             }
             catch (Exception ex)
@@ -433,13 +397,13 @@ public class Client : IDisposable
         }
     }
 
-    private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IReadOnlyDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+    private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, string url, IReadOnlyDictionary<string, string>? headers, object? data, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(method, url, headers, data);
         return await GetResponseAsync<T>(request, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string> headers, object data, CancellationToken cancellationToken)
+    private async Task<Response<T>> GetResponseAsync<T>(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string>? headers, object? data, CancellationToken cancellationToken)
     {
         using var request = CreateRequest(method, uri, headers, data);
         return await GetResponseAsync<T>(request, cancellationToken).ConfigureAwait(false);
@@ -450,17 +414,17 @@ public class Client : IDisposable
 
 
 
-    public virtual Task<Response> GetAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> GetAsync(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Get, url, requestHeaders, null, cancellationToken);
 
-    public virtual Task<Response> GetAsync(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> GetAsync(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Get, uri, requestHeaders, null, cancellationToken);
 
 
-    public virtual Task<Response<T>> GetAsync<T>(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> GetAsync<T>(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Get, url, requestHeaders, null, cancellationToken);
 
-    public virtual Task<Response<T>> GetAsync<T>(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> GetAsync<T>(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
        GetResponseAsync<T>(HttpMethod.Get, uri, requestHeaders, null, cancellationToken);
 
 
@@ -469,9 +433,9 @@ public class Client : IDisposable
 
     public virtual async Task<Response<string>> GetStringAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
     {
-        string content = null;
+        string? content = null;
         HttpStatusCode? statusCode = null;
-        string reasonPhrase = null;
+        string? reasonPhrase = null;
         int previousTries = 0;
         var retryAfter = TimeSpan.Zero;
         while (true)
@@ -545,13 +509,13 @@ public class Client : IDisposable
         }
     }
 
-    public virtual Task<Response<string>> GetStringAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    public virtual Task<Response<string>> GetStringAsync(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default)
     {
         var request = CreateRequest(HttpMethod.Get, url, requestHeaders, null);
         return GetStringAsync(request, cancellationToken);
     }
 
-    public virtual Task<Response<string>> GetStringAsync(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    public virtual Task<Response<string>> GetStringAsync(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default)
     {
         var request = CreateRequest(HttpMethod.Get, uri, requestHeaders, null);
         return GetStringAsync(request, cancellationToken);
@@ -562,9 +526,9 @@ public class Client : IDisposable
 
     public virtual async Task<Response<byte[]>> GetDataAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
     {
-        byte[] content = null;
+        byte[]? content = null;
         HttpStatusCode? statusCode = null;
-        string reasonPhrase = null;
+        string? reasonPhrase = null;
         int previousTries = 0;
         var retryAfter = TimeSpan.Zero;
         while (true)
@@ -589,7 +553,7 @@ public class Client : IDisposable
                     Success = true,
                     StatusCode = statusCode,
                     ReasonPhrase = reasonPhrase,
-                    RawContent = IncludeRawContentInResponse ? Encoding.UTF8.GetString(content) : null,
+                    RawContent = IncludeRawContentInResponse && content != null ? Encoding.UTF8.GetString(content) : null,
                     Data = content
                 };
             }
@@ -628,7 +592,7 @@ public class Client : IDisposable
                 Error = ex,
                 StatusCode = statusCode,
                 ReasonPhrase = reasonPhrase,
-                RawContent = IncludeRawContentInResponse ? Encoding.UTF8.GetString(content) : null
+                RawContent = IncludeRawContentInResponse && content != null ? Encoding.UTF8.GetString(content) : null
             };
 
             if (AutoThrowIfError)
@@ -638,13 +602,13 @@ public class Client : IDisposable
         }
     }
 
-    public virtual Task<Response<byte[]>> GetDataAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    public virtual Task<Response<byte[]>> GetDataAsync(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default)
     {
         var request = CreateRequest(HttpMethod.Get, url, requestHeaders, null);
         return GetDataAsync(request, cancellationToken);
     }
 
-    public virtual Task<Response<byte[]>> GetDataAsync(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default)
+    public virtual Task<Response<byte[]>> GetDataAsync(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default)
     {
         var request = CreateRequest(HttpMethod.Get, uri, requestHeaders, null);
         return GetDataAsync(request, cancellationToken);
@@ -654,26 +618,26 @@ public class Client : IDisposable
 
 
 
-    public virtual Task<Response> HeadAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> HeadAsync(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Head, url, requestHeaders, null, cancellationToken);
 
-    public virtual Task<Response> HeadAsync(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> HeadAsync(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Head, uri, requestHeaders, null, cancellationToken);
 
 
 
 
-    public virtual Task<Response> PostAsync(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PostAsync(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response> PostAsync(Uri uri, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PostAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
 
 
-    public virtual Task<Response<T>> PostAsync<T>(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PostAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PostAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PostAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
        GetResponseAsync<T>(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
 
 
@@ -681,20 +645,20 @@ public class Client : IDisposable
 
 
     /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
-    public virtual Task<Response> DeleteAsync(string url, IReadOnlyDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> DeleteAsync(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, object? data = null, CancellationToken cancellationToken = default) =>
        GetResponseAsync(HttpMethod.Delete, url, requestHeaders, data, cancellationToken);
 
     /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
-    public virtual Task<Response> DeleteAsync(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> DeleteAsync(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, object? data = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Delete, uri, requestHeaders, data, cancellationToken);
 
 
     /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
-    public virtual Task<Response<T>> DeleteAsync<T>(string url, IReadOnlyDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> DeleteAsync<T>(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, object? data = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Delete, url, requestHeaders, data, cancellationToken);
 
     /// <param name="data">While the HTTP DELETE specification does not allow a request body, there is at least 1 API I know of where a body is required! So this optional parameter is included</param>
-    public virtual Task<Response<T>> DeleteAsync<T>(Uri uri, IReadOnlyDictionary<string, string> requestHeaders = null, object data = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> DeleteAsync<T>(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, object? data = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Delete, uri, requestHeaders, data, cancellationToken);
 
 
@@ -708,33 +672,33 @@ public class Client : IDisposable
 
 
 
-    public virtual Task<Response> PutAsync(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PutAsync(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Put, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response> PutAsync(Uri uri, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PutAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Put, uri, requestHeaders, data, cancellationToken);
 
 
-    public virtual Task<Response<T>> PutAsync<T>(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PutAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Put, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PutAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PutAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Put, uri, requestHeaders, data, cancellationToken);
 
 
 
 
-    public virtual Task<Response> PatchAsync(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PatchAsync(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response> PatchAsync(Uri uri, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PatchAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
          GetResponseAsync(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
 
 
-    public virtual Task<Response<T>> PatchAsync<T>(string url, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PatchAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PatchAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string> requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PatchAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
 
 }

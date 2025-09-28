@@ -9,26 +9,22 @@ public class Response
 
     public HttpStatusCode? StatusCode { get; set; }
 
-    public string ReasonPhrase { get; set; }
+    public string? ReasonPhrase { get; set; }
 
-    public string RawContent { get; set; }
+    public string? RawContent { get; set; }
 
-    public Exception Error { get; set; }
+    public Exception? Error { get; set; }
 
     public void ThrowIfError()
     {
-        if (Success)
+        if (Success || Error == null)
             return;
 
-        if (Error != null)
-            throw new RestException(StatusCode, ReasonPhrase, RawContent, Error);
-
-        string errorMsg = string.IsNullOrWhiteSpace(ReasonPhrase) ? "Unknown Error" : ReasonPhrase;
-        throw new RestException(null, null, null, new Exception(errorMsg));
+        throw new RestException(StatusCode, ReasonPhrase, RawContent, Error);
     }
 }
 
 public class Response<T> : Response
 {
-    public T Data { get; set; }
+    public T? Data { get; set; }
 }

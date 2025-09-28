@@ -3,6 +3,7 @@
 	<PropertyGroup>
 		<TargetFrameworks>net7;net8;net9</TargetFrameworks>
 		<LangVersion>Latest</LangVersion>
+		<Nullable>enable</Nullable>
 		<NoWarn>$(NoWarn);1591;1570</NoWarn>
 	  
 		<!-- Leave the revision as zero, it's automatically set with github actions -->

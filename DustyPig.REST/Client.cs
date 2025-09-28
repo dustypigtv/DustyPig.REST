@@ -68,7 +68,7 @@ public class Client(HttpClient httpClient)
     ///    Otherwise, the retry delay will just be <see cref="RetryDelay"/>.
     /// </para>
     /// </remarks>
-    public uint RetryCount { get; set; }
+    public ushort RetryCount { get; set; }
 
 
 

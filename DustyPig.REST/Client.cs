@@ -74,8 +74,7 @@ public class Client(HttpClient httpClient, ILogger<Client>? logger = null)
     /// <para>
     /// 2. The connection succeeded, but the server sent HttpStatusCode.TooManyRequests (429). 
     ///    In this case, the client will attempt to get the RetryAfter header, and if found, 
-    ///    the delay will be the maximum of the header and the <see cref="RetryDelay"/>. 
-    ///    Otherwise, the retry delay will just be <see cref="RetryDelay"/>.
+    ///    the delay will use that value. If not found, exponential backoff with jitter will be used.
     /// </para>
     /// </remarks>
     public ushort RetryCount { get; set; }

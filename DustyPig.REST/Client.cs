@@ -32,8 +32,6 @@ public class Client(HttpClient httpClient)
     public bool IncludeRawContentInResponse { get; set; }
 
 
-    //In case the app uses a shared HttpClient, don't assign the base address to the HttpClient instance
-    
     /// <summary>
     /// Gets or sets the base address of Uniform Resource Identifier (URI) of the Internet resource used when sending requests
     /// </summary>

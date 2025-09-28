@@ -178,9 +178,9 @@ public class Client : IDisposable
     {
         if (_throttle > 0)
         {
-            var wait = (DateTime.Now - _lastCall).Milliseconds;
-            if (wait > 0)
-                return Task.Delay(wait, cancellationToken);
+            var wait = _throttle - (long)(DateTime.Now - _lastCall).TotalMilliseconds;
+            if (wait > 0 && wait <= int.MaxValue)
+                return Task.Delay((int)wait, cancellationToken);
         }
         return Task.CompletedTask;
     }

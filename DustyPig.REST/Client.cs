@@ -37,22 +37,9 @@ public class Client : IDisposable
     public Client(HttpClient httpClient)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
-
         _httpClient = httpClient;
-        _disposeOfHttpclient = false;
     }
 
-    /// <summary>
-    /// Creates a configuration that uses its own internal <see cref="HttpClient"/>. When using this constructor, <see cref="Dispose"/> should be called.
-    /// </summary>
-    public Client()
-    {
-        _httpClient = new();
-        _disposeOfHttpclient = true;
-    }
-
-
-   
 
 
 

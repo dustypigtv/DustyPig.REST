@@ -17,19 +17,29 @@ public class Client(HttpClient httpClient)
     private static readonly Random _random = new();
 
     private readonly HttpClient _httpClient = httpClient;
-
     private readonly Dictionary<string, string> _defaultHeaders = [];
-    private DateTime _lastCall = DateTime.MinValue;
-
-    private static readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerDefaults.Web)
+    private static readonly JsonSerializerOptions _defaultJsonSerializerOptions = new(JsonSerializerDefaults.Web)
     {
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
 
+    private DateTime _lastCall = DateTime.MinValue;
+
+    
+
     public bool AutoThrowIfError { get; set; }
 
+
     public bool IncludeRawContentInResponse { get; set; }
+
+
+    /// <summary>
+    /// The default options is <see cref="JsonSerializerDefaults.Web"/> with <see cref="JsonIgnoreCondition.WhenWritingNull"/>.
+    /// You can specify your own options here.
+    /// </summary>
+    public JsonSerializerOptions JsonSerializerOptions { get; set; } = _defaultJsonSerializerOptions;
+
 
 
     /// <summary>
@@ -160,7 +170,7 @@ public class Client(HttpClient httpClient)
         }
         else
         {
-            request.Content = new StringContent(JsonSerializer.Serialize(data, _jsonSerializerOptions), new MediaTypeHeaderValue(MediaTypeNames.Application.Json));
+            request.Content = new StringContent(JsonSerializer.Serialize(data, _defaultJsonSerializerOptions), new MediaTypeHeaderValue(MediaTypeNames.Application.Json));
         }
     }
         
@@ -314,7 +324,7 @@ public class Client(HttpClient httpClient)
                     StatusCode = statusCode,
                     ReasonPhrase = reasonPhrase,
                     RawContent = IncludeRawContentInResponse ? content : null,
-                    Data = JsonSerializer.Deserialize<T>(content!, _jsonSerializerOptions)
+                    Data = JsonSerializer.Deserialize<T>(content!, _defaultJsonSerializerOptions)
                 };
             }
             catch (Exception ex)

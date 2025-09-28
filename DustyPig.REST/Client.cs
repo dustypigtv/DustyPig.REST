@@ -14,9 +14,6 @@ namespace DustyPig.REST;
 
 public class Client(HttpClient httpClient)
 {
-    //From Timer class in System.Threading
-    private const uint MaxSupportedTimeout = 0xfffffffe;
-
     private static readonly Random _random = new();
 
     private readonly HttpClient _httpClient = httpClient;
@@ -90,7 +87,7 @@ public class Client(HttpClient httpClient)
 
         //Use exponential backoff with jitter
         //https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-        var wait = TimeSpan.FromMilliseconds(Math.Min(Math.Pow(2, previousTries) * _random.Next(100, 1000), MaxSupportedTimeout));
+        var wait = (int)Math.Pow(2, previousTries) * _random.Next(100, 1000);
         return Task.Delay(wait, cancellationToken);
     }
 
@@ -98,8 +95,7 @@ public class Client(HttpClient httpClient)
     {
         if (Throttle > 0)
         {
-            //Task.Dealy has a max delay of MaxSupportedTimeout from Timer class in System.Threading
-            var wait = TimeSpan.FromMilliseconds(Math.Min(Throttle - (long)(DateTime.Now - _lastCall).TotalMilliseconds, MaxSupportedTimeout));
+            var wait = (int)(Throttle - (DateTime.Now - _lastCall).TotalMilliseconds);
             return Task.Delay(wait, cancellationToken);
         }
         return Task.CompletedTask;

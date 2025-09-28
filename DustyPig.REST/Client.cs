@@ -80,10 +80,14 @@ public class Client(HttpClient httpClient)
     public uint Throttle { get; set; }
 
 
-    private Task ExponentialBackoff(int previousTries, CancellationToken cancellationToken)
+    private Task ExponentialBackoff(TimeSpan retryAfter, int previousTries, CancellationToken cancellationToken)
     {
         if (previousTries <= 0 && previousTries >= RetryCount)
             return Task.CompletedTask;
+
+        //If the server sent a Retry-After header, wait that long
+        if (retryAfter > TimeSpan.Zero)
+            return Task.Delay(retryAfter, cancellationToken);
 
         //Use exponential backoff with jitter
         //https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
@@ -227,7 +231,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -325,7 +329,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -435,7 +439,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -526,7 +530,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {

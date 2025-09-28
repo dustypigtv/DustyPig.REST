@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.Extensions.Logging;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -12,11 +13,12 @@ using System.Threading.Tasks;
 
 namespace DustyPig.REST;
 
-public class Client(HttpClient httpClient)
+public class Client(HttpClient httpClient, ILogger<Client>? logger = null)
 {
     private static readonly Random _random = new();
 
     private readonly HttpClient _httpClient = httpClient;
+    private readonly ILogger<Client>? _logger = logger;
     private readonly Dictionary<string, string> _defaultHeaders = [];
     private static readonly JsonSerializerOptions _defaultJsonSerializerOptions = new(JsonSerializerDefaults.Web)
     {
@@ -95,11 +97,16 @@ public class Client(HttpClient httpClient)
 
         //If the server sent a Retry-After header, wait that long
         if (retryAfter > TimeSpan.Zero)
+        {
+            _logger?.LogTrace("Throttling due to Retry-After header: {val}", retryAfter);
             return Task.Delay(retryAfter, cancellationToken);
+        }
+
 
         //Use exponential backoff with jitter
         //https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
         var wait = (int)Math.Pow(2, previousTries) * _random.Next(100, 1000);
+        _logger?.LogTrace("Throttling due to exponential backoff: {val}ms", wait);
         return Task.Delay(wait, cancellationToken);
     }
 
@@ -107,6 +114,7 @@ public class Client(HttpClient httpClient)
     {
         if (Throttle > 0)
         {
+            _logger?.LogTrace("Throttling due to specified minimum: {val}ms", Throttle);
             var wait = (int)(Throttle - (DateTime.Now - _lastCall).TotalMilliseconds);
             return Task.Delay(wait, cancellationToken);
         }
@@ -135,6 +143,7 @@ public class Client(HttpClient httpClient)
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string url, IReadOnlyDictionary<string, string>? headers, object? data)
     {
+        _logger?.LogTrace("Creating {method} request for {url}", method, url);
         var request = new HttpRequestMessage(method, GetFullUri(url));
         AddHeadersAndContent(request, headers, data);
         return request;
@@ -142,6 +151,7 @@ public class Client(HttpClient httpClient)
 
     private HttpRequestMessage CreateRequest(HttpMethod method, Uri uri, IReadOnlyDictionary<string, string>? headers, object? data)
     {
+        _logger?.LogTrace("Creating {method} request for {url}", method, uri);
         var request = new HttpRequestMessage(method, GetFullUri(uri));
         AddHeadersAndContent(request, headers, data);
         return request;
@@ -150,11 +160,17 @@ public class Client(HttpClient httpClient)
     private void AddHeadersAndContent(HttpRequestMessage request, IReadOnlyDictionary<string, string>? headers, object? data)
     {
         foreach (var header in _defaultHeaders)
+        {
+            _logger?.LogTrace("Adding default header {key}: {val}", header.Key, header.Value);
             request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
 
         if (headers != null)
             foreach (var header in headers)
+            {
+                _logger?.LogTrace("Adding request header {key}: {val}", header.Key, header.Value);
                 request.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
 
         if (data == null)
         {
@@ -166,18 +182,23 @@ public class Client(HttpClient httpClient)
                request.Method == HttpMethod.Delete ||
                request.Method == HttpMethod.Patch;
             if (addHeader)
+            {
+                _logger?.LogTrace("Adding empty content for {method} request (Android work around)", request.Method);
                 request.Content = new StringContent(string.Empty, new MediaTypeHeaderValue(MediaTypeNames.Application.Json));
+            }
         }
         else
         {
+            _logger?.LogTrace("Adding content to {method} request: {data}", request.Method, data);
             request.Content = new StringContent(JsonSerializer.Serialize(data, _defaultJsonSerializerOptions), new MediaTypeHeaderValue(MediaTypeNames.Application.Json));
         }
     }
         
 
-    public static HttpRequestMessage CloneRequest(HttpRequestMessage request)
+    public HttpRequestMessage CloneRequest(HttpRequestMessage request)
     {
         //Can't send the same request twice, so just build a copy for retries
+        _logger?.LogTrace("Cloning request for retry");
         var ret = new HttpRequestMessage(request.Method, request.RequestUri)
         {
             Content = request.Content,
@@ -186,10 +207,16 @@ public class Client(HttpClient httpClient)
         };
 
         foreach (var header in request.Headers)
+        {
+            _logger?.LogTrace("Cloning header for retry: {key}={val}", header.Key, header.Value);
             ret.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
 
         foreach (var option in request.Options)
+        {
+            _logger?.LogTrace("Cloning option for retry: {key}={val}", option.Key, option.Value);
             ret.Options.TryAdd(option.Key, option.Value);
+        }
 
         return ret;
     }
@@ -210,6 +237,8 @@ public class Client(HttpClient httpClient)
             {
                 if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
+
+                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -231,6 +260,7 @@ public class Client(HttpClient httpClient)
             }
             catch (Exception ex)
             {
+                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
                 SetLastCallTime();
 
                 //If statusCode == null, there was a network error, retries are permitted
@@ -300,13 +330,10 @@ public class Client(HttpClient httpClient)
         {
             try
             {
-                if(request.Method.Method == HttpMethod.Delete.Method)
-                {
-                    System.Diagnostics.Debug.WriteLine("DELETE");
-                }
-
                 if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
+                
+                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -329,6 +356,7 @@ public class Client(HttpClient httpClient)
             }
             catch (Exception ex)
             {
+                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
                 SetLastCallTime();
 
                 //If statusCode == null, there was a network error, retries are permitted
@@ -417,6 +445,8 @@ public class Client(HttpClient httpClient)
             {
                 if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
+
+                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -439,6 +469,7 @@ public class Client(HttpClient httpClient)
             }
             catch (Exception ex)
             {
+                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
                 SetLastCallTime();
 
                 //If statusCode == null, there was a network error, retries are permitted
@@ -508,6 +539,8 @@ public class Client(HttpClient httpClient)
             {
                 if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
+
+                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
                 reasonPhrase = response.ReasonPhrase;
@@ -530,6 +563,7 @@ public class Client(HttpClient httpClient)
             }
             catch (Exception ex)
             {
+                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
                 SetLastCallTime();
 
                 //If statusCode == null, there was a network error, retries are permitted

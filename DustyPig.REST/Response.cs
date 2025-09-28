@@ -17,10 +17,10 @@ public class Response
 
     public void ThrowIfError()
     {
-        if (Success || Error == null)
+        if (Success)
             return;
 
-        throw new RestException(StatusCode, ReasonPhrase, RawContent, Error);
+        throw new RestException(StatusCode, ReasonPhrase, RawContent, Error ?? new("Unknown Error"));
     }
 }
 

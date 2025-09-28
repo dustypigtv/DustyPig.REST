@@ -14,12 +14,14 @@ namespace DustyPig.REST;
 
 public class Client(HttpClient httpClient)
 {
+    //From Timer class in System.Threading
+    private const uint MaxSupportedTimeout = 0xfffffffe;
+
+    private static readonly Random _random = new();
+
     private readonly HttpClient _httpClient = httpClient;
 
     private readonly Dictionary<string, string> _defaultHeaders = [];
-    private int _retryCount = 0;
-    private int _retryDelay = 0;
-    private int _throttle = 0;
     private DateTime _lastCall = DateTime.MinValue;
 
     private static readonly JsonSerializerOptions _jsonSerializerOptions = new(JsonSerializerDefaults.Web)
@@ -69,32 +71,8 @@ public class Client(HttpClient httpClient)
     ///    Otherwise, the retry delay will just be <see cref="RetryDelay"/>.
     /// </para>
     /// </remarks>
-    public int RetryCount
-    {
-        get => _retryCount;
-        set
-        {
-            ThrowIfNegative(value);
-            _retryCount = value;
-        }
-    }
+    public uint RetryCount { get; set; }
 
-
-    /// <summary>
-    /// Number of milliseconds between retries.
-    /// <br />
-    /// Default = 0
-    /// </summary>
-    public int RetryDelay
-    {
-        get => _retryDelay;
-        set
-        {
-
-            ThrowIfNegative(value);
-            _retryDelay = value;
-        }
-    }
 
 
     /// <summary>
@@ -102,43 +80,34 @@ public class Client(HttpClient httpClient)
     /// <br />
     /// Default = 0
     /// </summary>
-    public int Throttle
+    public uint Throttle { get; set; }
+
+
+    private Task ExponentialBackoff(int previousTries, CancellationToken cancellationToken)
     {
-        get => _throttle;
-        set
-        {
-            ThrowIfNegative(value);
-            _throttle = value;
-        }
+        if (previousTries <= 0 && previousTries >= RetryCount)
+            return Task.CompletedTask;
+
+        //Use exponential backoff with jitter
+        //https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+        var wait = TimeSpan.FromMilliseconds(Math.Min(Math.Pow(2, previousTries) * _random.Next(100, 1000), MaxSupportedTimeout));
+        return Task.Delay(wait, cancellationToken);
     }
-
-
-
-    private static void ThrowIfNegative(int value)
-    {
-#if NET8_0_OR_GREATER
-        ArgumentOutOfRangeException.ThrowIfNegative(value);
-#else
-        if (value < 0)
-            throw new ArgumentOutOfRangeException(nameof(value), value, $"{nameof(value)} ('{value}') must be a non-negative value.");
-#endif
-    }
-
 
     private Task WaitForThrottle(CancellationToken cancellationToken)
     {
-        if (_throttle > 0)
+        if (Throttle > 0)
         {
-            var wait = _throttle - (long)(DateTime.Now - _lastCall).TotalMilliseconds;
-            if (wait > 0 && wait <= int.MaxValue)
-                return Task.Delay((int)wait, cancellationToken);
+            //Task.Dealy has a max delay of MaxSupportedTimeout from Timer class in System.Threading
+            var wait = TimeSpan.FromMilliseconds(Math.Min(Throttle - (long)(DateTime.Now - _lastCall).TotalMilliseconds, MaxSupportedTimeout));
+            return Task.Delay(wait, cancellationToken);
         }
         return Task.CompletedTask;
     }
 
     private void SetLastCallTime()
     {
-        if (_throttle > 0)
+        if (Throttle > 0)
             _lastCall = DateTime.Now;
         else
             _lastCall = DateTime.MinValue;
@@ -231,7 +200,7 @@ public class Client(HttpClient httpClient)
         {
             try
             {
-                if (_throttle > 0)
+                if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -262,9 +231,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
-                        if (delay > 0)
-                            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -330,7 +297,7 @@ public class Client(HttpClient httpClient)
                     System.Diagnostics.Debug.WriteLine("DELETE");
                 }
 
-                if (_throttle > 0)
+                if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -362,9 +329,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
-                        if (delay > 0)
-                            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -442,7 +407,7 @@ public class Client(HttpClient httpClient)
         {
             try
             {
-                if (_throttle > 0)
+                if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -474,9 +439,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
-                        if (delay > 0)
-                            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -535,7 +498,7 @@ public class Client(HttpClient httpClient)
         {
             try
             {
-                if (_throttle > 0)
+                if (Throttle > 0)
                     await WaitForThrottle(cancellationToken).ConfigureAwait(false);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -567,9 +530,7 @@ public class Client(HttpClient httpClient)
                 {
                     try
                     {
-                        int delay = Math.Max(0, Math.Max(RetryDelay, retryAfter.Milliseconds));
-                        if (delay > 0)
-                            await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                        await ExponentialBackoff(previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {

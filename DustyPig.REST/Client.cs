@@ -26,7 +26,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
     };
 
 
-    private DateTime _lastCall = DateTime.MinValue;
+    private DateTime _lastCall = DateTime.Now;
 
     
 
@@ -115,18 +115,12 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         {
             _logger?.LogTrace("Throttling due to specified minimum: {val}ms", Throttle);
             var wait = (int)(Throttle - (DateTime.Now - _lastCall).TotalMilliseconds);
-            return Task.Delay(wait, cancellationToken);
+            if(wait > 0)    
+                return Task.Delay(wait, cancellationToken);
         }
         return Task.CompletedTask;
     }
 
-    private void SetLastCallTime()
-    {
-        if (Throttle > 0)
-            _lastCall = DateTime.Now;
-        else
-            _lastCall = DateTime.MinValue;
-    }
 
 
     /// <summary>
@@ -247,7 +241,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 return new Response
                 {
@@ -260,7 +254,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
@@ -342,7 +336,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 return new Response<T>
                 {
@@ -356,7 +350,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
@@ -455,7 +449,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 return new Response<string>
                 {
@@ -469,7 +463,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
@@ -549,7 +543,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 return new Response<byte[]>
                 {
@@ -563,7 +557,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                SetLastCallTime();
+                _lastCall = DateTime.Now;
 
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted

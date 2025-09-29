@@ -13,12 +13,12 @@ using System.Threading.Tasks;
 
 namespace DustyPig.REST;
 
-public class Client(HttpClient httpClient, ILogger<Client>? logger = null)
+public class Client(HttpClient httpClient, ILogger? logger = null)
 {
     private static readonly Random _random = new();
 
     private readonly HttpClient _httpClient = httpClient;
-    private readonly ILogger<Client>? _logger = logger;
+    private readonly ILogger? _logger = logger;
     private readonly Dictionary<string, string> _defaultHeaders = [];
     private static readonly JsonSerializerOptions _defaultJsonSerializerOptions = new(JsonSerializerDefaults.Web)
     {

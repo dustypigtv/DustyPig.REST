@@ -40,23 +40,23 @@ public class SlidingRateLimiter : DelegatingHandler
     {
         lock (_locker)
         {
+            if (_requestHistory.Count == _maxRequests)
+            {
+                var delta = DateTime.UtcNow - _requestHistory.Peek();
+                if (delta > _timeWindow)
+                {
+                    _requestHistory.Dequeue();
+                }
+                else
+                {
+                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                    return Task.FromResult(response);
+                }
+            }
+
             try
             {
-                if (_requestHistory.Count == _maxRequests)
-                {
-                    var delta = DateTime.UtcNow - _requestHistory.Peek();
-                    if (delta > _timeWindow)
-                    {
-                        _requestHistory.Dequeue();
-                    }
-                    else
-                    {
-                        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                        return Task.FromResult(response);
-                    }
-                }
-
                 return base.SendAsync(request, cancellationToken);
             }
             finally
@@ -70,23 +70,23 @@ public class SlidingRateLimiter : DelegatingHandler
     {
         lock (_locker)
         {
+            if (_requestHistory.Count == _maxRequests)
+            {
+                var delta = DateTime.UtcNow - _requestHistory.Peek();
+                if (delta > _timeWindow)
+                {
+                    _requestHistory.Dequeue();
+                }
+                else
+                {
+                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                    return response;
+                }
+            }
+
             try
             {
-                if (_requestHistory.Count == _maxRequests)
-                {
-                    var delta = DateTime.UtcNow - _requestHistory.Peek();
-                    if (delta > _timeWindow)
-                    {
-                        _requestHistory.Dequeue();
-                    }
-                    else
-                    {
-                        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                        return response;
-                    }
-                }
-
                 return base.Send(request, cancellationToken);
             }
             finally

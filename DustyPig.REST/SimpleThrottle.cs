@@ -32,16 +32,16 @@ public class SimpleThrottle : DelegatingHandler
     {
         lock (_locker)
         {
+            var delta = _delay - (DateTime.UtcNow - _lastRequest);
+            if (delta > TimeSpan.Zero)
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                return Task.FromResult(response);
+            }
+
             try
             {
-                var delta = _delay - (DateTime.UtcNow - _lastRequest);
-                if (delta > TimeSpan.Zero)
-                {
-                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                    return Task.FromResult(response);
-                }
-
                 return base.SendAsync(request, cancellationToken);
             }
             finally
@@ -55,16 +55,16 @@ public class SimpleThrottle : DelegatingHandler
     {
         lock (_locker)
         {
+            var delta = _delay - (DateTime.UtcNow - _lastRequest);
+            if (delta > TimeSpan.Zero)
+            {
+                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                return response;
+            }
+
             try
             {
-                var delta = _delay - (DateTime.UtcNow - _lastRequest);
-                if (delta > TimeSpan.Zero)
-                {
-                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                    return response;
-                }
-
                 return base.Send(request, cancellationToken);
             }
             finally

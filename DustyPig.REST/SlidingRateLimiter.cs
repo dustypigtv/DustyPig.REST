@@ -20,6 +20,7 @@ public class SlidingRateLimiter : DelegatingHandler
     private readonly object _locker = new();
 #endif
 
+    private SemaphoreSlim _semaphore = new(1, 1);
     private readonly Queue<DateTime> _requestHistory = new();
     private readonly int _maxRequests;
     private readonly TimeSpan _timeWindow = TimeSpan.Zero;
@@ -36,34 +37,10 @@ public class SlidingRateLimiter : DelegatingHandler
         _timeWindow = timeWindow;
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        lock (_locker)
-        {
-            if (_requestHistory.Count == _maxRequests)
-            {
-                var delta = DateTime.UtcNow - _requestHistory.Peek();
-                if (delta > _timeWindow)
-                {
-                    _requestHistory.Dequeue();
-                }
-                else
-                {
-                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                    return Task.FromResult(response);
-                }
-            }
-
-            _requestHistory.Enqueue(DateTime.UtcNow);
-
-            return base.SendAsync(request, cancellationToken);
-        }
-    }
-
-    protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        lock (_locker)
+        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
             if (_requestHistory.Count == _maxRequests)
             {
@@ -80,9 +57,38 @@ public class SlidingRateLimiter : DelegatingHandler
                 }
             }
 
+            var ret = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
             _requestHistory.Enqueue(DateTime.UtcNow);
+            return ret;
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
 
-            return base.Send(request, cancellationToken);
+    protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        lock (_semaphore)
+        {
+            if (_requestHistory.Count == _maxRequests)
+            {
+                var delta = DateTime.UtcNow - _requestHistory.Peek();
+                if (delta > _timeWindow)
+                {
+                    _requestHistory.Dequeue();
+                }
+                else
+                {
+                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                    return response;
+                }
+            }
+
+            var ret = base.Send(request, cancellationToken);
+            _requestHistory.Enqueue(DateTime.UtcNow);
+            return ret;
         }
     }
 }

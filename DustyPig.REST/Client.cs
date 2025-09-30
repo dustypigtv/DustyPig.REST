@@ -26,10 +26,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
     };
 
 
-    private DateTime _lastCall = DateTime.Now;
-
-    
-
     public bool AutoThrowIfError { get; set; }
 
 
@@ -80,16 +76,24 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
     public ushort RetryCount { get; set; }
 
 
+    private static bool AreRetriesPermitted(HttpStatusCode? statusCode)
+    {
+        //If statusCode == null, there was a network error, retries are permitted
+        //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
+        //If statusCode >= 500, retries are also permitted
+        if (statusCode == null)
+            return true;
 
-    /// <summary>
-    /// Minimum number of milliseconds between api calls.
-    /// <br />
-    /// Default = 0
-    /// </summary>
-    public uint Throttle { get; set; }
+        if (statusCode == HttpStatusCode.TooManyRequests)
+            return true;
 
+        if ((int)statusCode >= 500)
+            return true;
 
-    private Task ExponentialBackoff(TimeSpan retryAfter, int previousTries, CancellationToken cancellationToken)
+        return false;
+    }
+
+    private Task ThrottleNextRequest(TimeSpan retryAfter, int previousTries, CancellationToken cancellationToken)
     {
         if (previousTries <= 0 && previousTries >= RetryCount)
             return Task.CompletedTask;
@@ -109,17 +113,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         return Task.Delay(wait, cancellationToken);
     }
 
-    private Task WaitForThrottle(CancellationToken cancellationToken)
-    {
-        if (Throttle > 0)
-        {
-            _logger?.LogTrace("Throttling due to specified minimum: {val}ms", Throttle);
-            var wait = (int)(Throttle - (DateTime.Now - _lastCall).TotalMilliseconds);
-            if(wait > 0)    
-                return Task.Delay(wait, cancellationToken);
-        }
-        return Task.CompletedTask;
-    }
 
 
 
@@ -186,7 +179,7 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             request.Content = new StringContent(JsonSerializer.Serialize(data, _defaultJsonSerializerOptions), new MediaTypeHeaderValue(MediaTypeNames.Application.Json));
         }
     }
-        
+
 
     public HttpRequestMessage CloneRequest(HttpRequestMessage request)
     {
@@ -228,9 +221,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         {
             try
             {
-                if (Throttle > 0)
-                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
-
                 _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -241,8 +231,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                _lastCall = DateTime.Now;
-
                 return new Response
                 {
                     Success = true,
@@ -254,15 +242,15 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                _lastCall = DateTime.Now;
 
                 //If statusCode == null, there was a network error, retries are permitted
                 //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
-                if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
+                //If statusCode >= 500, retries are also permitted
+                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
                 {
                     try
                     {
-                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
+                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -323,9 +311,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         {
             try
             {
-                if (Throttle > 0)
-                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
-                
                 _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -336,8 +321,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                _lastCall = DateTime.Now;
-
                 return new Response<T>
                 {
                     Success = true,
@@ -350,15 +333,11 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                _lastCall = DateTime.Now;
-
-                //If statusCode == null, there was a network error, retries are permitted
-                //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
-                if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
+                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
                 {
                     try
                     {
-                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
+                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -436,9 +415,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         {
             try
             {
-                if (Throttle > 0)
-                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
-
                 _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -449,8 +425,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                _lastCall = DateTime.Now;
-
                 return new Response<string>
                 {
                     Success = true,
@@ -463,15 +437,11 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                _lastCall = DateTime.Now;
-
-                //If statusCode == null, there was a network error, retries are permitted
-                //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
-                if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
+                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
                 {
                     try
                     {
-                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
+                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -530,9 +500,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         {
             try
             {
-                if (Throttle > 0)
-                    await WaitForThrottle(cancellationToken).ConfigureAwait(false);
-
                 _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
                 using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
                 statusCode = response.StatusCode;
@@ -543,8 +510,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
                     content = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
 
                 response.EnsureSuccessStatusCode();
-                _lastCall = DateTime.Now;
-
                 return new Response<byte[]>
                 {
                     Success = true,
@@ -557,15 +522,11 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                _lastCall = DateTime.Now;
-
-                //If statusCode == null, there was a network error, retries are permitted
-                //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
-                if (previousTries < RetryCount && (statusCode == null || statusCode == HttpStatusCode.TooManyRequests))
+                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
                 {
                     try
                     {
-                        await ExponentialBackoff(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
+                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
                     }
                     catch
                     {
@@ -674,7 +635,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
     public virtual Task<Response> PutAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Put, uri, requestHeaders, data, cancellationToken);
 
-
     public virtual Task<Response<T>> PutAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Put, url, requestHeaders, data, cancellationToken);
 
@@ -690,11 +650,9 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
     public virtual Task<Response> PatchAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
          GetResponseAsync(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
 
-
     public virtual Task<Response<T>> PatchAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
 
     public virtual Task<Response<T>> PatchAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
-
 }

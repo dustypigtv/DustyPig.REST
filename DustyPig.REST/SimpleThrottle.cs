@@ -18,7 +18,6 @@ public class SimpleThrottle : DelegatingHandler
     private readonly object _locker = new();
 #endif
 
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly TimeSpan _delay;
     private DateTime _lastRequest = DateTime.MinValue;
 
@@ -29,26 +28,26 @@ public class SimpleThrottle : DelegatingHandler
         _delay = delay;
     }
 
-    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        lock (_locker)
         {
-            var delta = _delay - (DateTime.UtcNow - _lastRequest);
-            if (delta > TimeSpan.Zero)
+            try
             {
-                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                return response;
-            }
+                var delta = _delay - (DateTime.UtcNow - _lastRequest);
+                if (delta > TimeSpan.Zero)
+                {
+                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                    return Task.FromResult(response);
+                }
 
-            var ret = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            _lastRequest = DateTime.UtcNow;
-            return ret;
-        }
-        finally
-        {
-            _semaphore.Release();
+                return base.SendAsync(request, cancellationToken);
+            }
+            finally
+            {
+                _lastRequest = DateTime.UtcNow;
+            }
         }
     }
 
@@ -56,17 +55,22 @@ public class SimpleThrottle : DelegatingHandler
     {
         lock (_locker)
         {
-            var delta = _delay - (DateTime.UtcNow - _lastRequest);
-            if (delta > TimeSpan.Zero)
+            try
             {
-                var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                return response;
-            }
+                var delta = _delay - (DateTime.UtcNow - _lastRequest);
+                if (delta > TimeSpan.Zero)
+                {
+                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                    return response;
+                }
 
-            var ret = base.Send(request, cancellationToken);
-            _lastRequest = DateTime.UtcNow;
-            return ret;
+                return base.Send(request, cancellationToken);
+            }
+            finally
+            {
+                _lastRequest = DateTime.UtcNow;
+            }
         }
     }
 }

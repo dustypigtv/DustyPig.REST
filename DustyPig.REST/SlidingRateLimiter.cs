@@ -20,7 +20,6 @@ public class SlidingRateLimiter : DelegatingHandler
     private readonly object _locker = new();
 #endif
 
-    private SemaphoreSlim _semaphore = new(1, 1);
     private readonly Queue<DateTime> _requestHistory = new();
     private readonly int _maxRequests;
     private readonly TimeSpan _timeWindow = TimeSpan.Zero;
@@ -37,58 +36,63 @@ public class SlidingRateLimiter : DelegatingHandler
         _timeWindow = timeWindow;
     }
 
-    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
+        lock (_locker)
         {
-            if (_requestHistory.Count == _maxRequests)
+            try
             {
-                var delta = DateTime.UtcNow - _requestHistory.Peek();
-                if (delta > _timeWindow)
+                if (_requestHistory.Count == _maxRequests)
                 {
-                    _requestHistory.Dequeue();
+                    var delta = DateTime.UtcNow - _requestHistory.Peek();
+                    if (delta > _timeWindow)
+                    {
+                        _requestHistory.Dequeue();
+                    }
+                    else
+                    {
+                        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                        return Task.FromResult(response);
+                    }
                 }
-                else
-                {
-                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                    return response;
-                }
-            }
 
-            var ret = await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
-            _requestHistory.Enqueue(DateTime.UtcNow);
-            return ret;
-        }
-        finally
-        {
-            _semaphore.Release();
+                return base.SendAsync(request, cancellationToken);
+            }
+            finally
+            {
+                _requestHistory.Enqueue(DateTime.UtcNow);
+            }
         }
     }
 
     protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        lock (_semaphore)
+        lock (_locker)
         {
-            if (_requestHistory.Count == _maxRequests)
+            try
             {
-                var delta = DateTime.UtcNow - _requestHistory.Peek();
-                if (delta > _timeWindow)
+                if (_requestHistory.Count == _maxRequests)
                 {
-                    _requestHistory.Dequeue();
+                    var delta = DateTime.UtcNow - _requestHistory.Peek();
+                    if (delta > _timeWindow)
+                    {
+                        _requestHistory.Dequeue();
+                    }
+                    else
+                    {
+                        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+                        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+                        return response;
+                    }
                 }
-                else
-                {
-                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                    return response;
-                }
-            }
 
-            var ret = base.Send(request, cancellationToken);
-            _requestHistory.Enqueue(DateTime.UtcNow);
-            return ret;
+                return base.Send(request, cancellationToken);
+            }
+            finally
+            {
+                _requestHistory.Enqueue(DateTime.UtcNow);
+            }
         }
     }
 }

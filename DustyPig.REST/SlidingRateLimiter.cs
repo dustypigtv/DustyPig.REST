@@ -55,14 +55,8 @@ public class SlidingRateLimiter : DelegatingHandler
                 }
             }
 
-            try
-            {
-                return base.SendAsync(request, cancellationToken);
-            }
-            finally
-            {
-                _requestHistory.Enqueue(DateTime.UtcNow);
-            }
+            _requestHistory.Enqueue(DateTime.UtcNow);
+            return base.SendAsync(request, cancellationToken);
         }
     }
 
@@ -85,14 +79,8 @@ public class SlidingRateLimiter : DelegatingHandler
                 }
             }
 
-            try
-            {
-                return base.Send(request, cancellationToken);
-            }
-            finally
-            {
-                _requestHistory.Enqueue(DateTime.UtcNow);
-            }
+            _requestHistory.Enqueue(DateTime.UtcNow);
+            return base.Send(request, cancellationToken);
         }
     }
 }

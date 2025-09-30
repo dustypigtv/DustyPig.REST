@@ -40,14 +40,8 @@ public class SimpleThrottle : DelegatingHandler
                 return Task.FromResult(response);
             }
 
-            try
-            {
-                return base.SendAsync(request, cancellationToken);
-            }
-            finally
-            {
-                _lastRequest = DateTime.UtcNow;
-            }
+            _lastRequest = DateTime.UtcNow;
+            return base.SendAsync(request, cancellationToken);
         }
     }
 
@@ -63,14 +57,8 @@ public class SimpleThrottle : DelegatingHandler
                 return response;
             }
 
-            try
-            {
-                return base.Send(request, cancellationToken);
-            }
-            finally
-            {
-                _lastRequest = DateTime.UtcNow;
-            }
+            _lastRequest = DateTime.UtcNow;
+            return base.Send(request, cancellationToken);
         }
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Threading;
@@ -14,73 +13,98 @@ namespace DustyPig.REST;
 /// </summary>
 public class SlidingRateLimiter : DelegatingHandler
 {
-#if NET9_0_OR_GREATER
-    private readonly Lock _locker = new();
-#else
-    private readonly object _locker = new();
-#endif
-
-    private readonly Queue<DateTime> _requestHistory = new();
-    private readonly int _maxRequests;
-    private readonly TimeSpan _timeWindow = TimeSpan.Zero;
+    private readonly SemaphoreSlim[] _semaphores;
+    private readonly DateTime[] _availableTimes;
+    private readonly TimeSpan _timeWindow;
 
     public SlidingRateLimiter(int maxRequests, TimeSpan timeWindow, HttpMessageHandler? innerHandler = null) : base(innerHandler ?? new HttpClientHandler())
     {
+
         if (maxRequests <= 0)
             throw new ArgumentOutOfRangeException(nameof(maxRequests), "Must be greater than zero.");
 
         if (timeWindow <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(timeWindow), "Must be greater than zero.");
 
-        _maxRequests = maxRequests;
         _timeWindow = timeWindow;
+        _semaphores = new SemaphoreSlim[maxRequests];
+        _availableTimes = new DateTime[maxRequests];
+        for(int i = 0; i < maxRequests; i++)
+        {
+            _semaphores[i] = new SemaphoreSlim(1, 1);
+            _availableTimes[i] = DateTime.UtcNow.Add(-timeWindow).AddSeconds(-1);
+        }
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        lock (_locker)
+        DateTime utcNow = DateTime.UtcNow;
+        DateTime firstAvailable = DateTime.MaxValue;
+
+        for (int i = 0; i < _semaphores.Length; i++)
         {
-            if (_requestHistory.Count == _maxRequests)
+            if(await _semaphores[i].WaitAsync(0, cancellationToken).ConfigureAwait(false))
             {
-                var delta = DateTime.UtcNow - _requestHistory.Peek();
-                if (delta > _timeWindow)
+                try
                 {
-                    _requestHistory.Dequeue();
+                    return await base.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 }
-                else
+                finally
                 {
-                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                    return Task.FromResult(response);
+                    new Thread(new ParameterizedThreadStart(WaitAndRelease)) { IsBackground = true }.Start(i);
                 }
             }
-
-            _requestHistory.Enqueue(DateTime.UtcNow);
-            return base.SendAsync(request, cancellationToken);
+            else
+            {
+                if (_availableTimes[i] < firstAvailable)
+                    firstAvailable = _availableTimes[i];
+            }
         }
+
+        var delta = _timeWindow - (utcNow - firstAvailable);
+        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+        return response;
     }
 
     protected override HttpResponseMessage Send(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        lock (_locker)
+        DateTime utcNow = DateTime.UtcNow;
+        DateTime firstAvailable = DateTime.MaxValue;
+
+        for (int i = 0; i < _semaphores.Length; i++)
         {
-            if (_requestHistory.Count == _maxRequests)
+            if (_semaphores[i].Wait(0, cancellationToken))
             {
-                var delta = DateTime.UtcNow - _requestHistory.Peek();
-                if (delta > _timeWindow)
+                try
                 {
-                    _requestHistory.Dequeue();
+                    return base.Send(request, cancellationToken);
                 }
-                else
+                finally
                 {
-                    var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
-                    response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
-                    return response;
+                    new Thread(new ParameterizedThreadStart(WaitAndRelease)) { IsBackground = true }.Start(i);
                 }
             }
+            else
+            {
+                if (_availableTimes[i] < firstAvailable)
+                    firstAvailable = _availableTimes[i];
+            }
+        }
 
-            _requestHistory.Enqueue(DateTime.UtcNow);
-            return base.Send(request, cancellationToken);
+        var delta = _timeWindow - (utcNow - firstAvailable);
+        var response = new HttpResponseMessage(HttpStatusCode.TooManyRequests);
+        response.Headers.RetryAfter = new System.Net.Http.Headers.RetryConditionHeaderValue(delta);
+        return response;
+    }
+
+
+    private void WaitAndRelease(object? state)
+    {
+        if (state is int i)
+        {
+            Thread.Sleep(_timeWindow);
+            _semaphores[i].Release();
         }
     }
 }

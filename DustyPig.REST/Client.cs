@@ -584,17 +584,17 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
 
 
 
-    public virtual Task<Response> PostAsync(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PostAsync(string url, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response> PostAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PostAsync(Uri uri, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
 
 
-    public virtual Task<Response<T>> PostAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PostAsync<T>(string url, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Post, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PostAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PostAsync<T>(Uri uri, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
        GetResponseAsync<T>(HttpMethod.Post, uri, requestHeaders, data, cancellationToken);
 
 
@@ -629,30 +629,30 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
 
 
 
-    public virtual Task<Response> PutAsync(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PutAsync(string url, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Put, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response> PutAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PutAsync(Uri uri, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Put, uri, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PutAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PutAsync<T>(string url, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Put, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PutAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PutAsync<T>(Uri uri, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Put, uri, requestHeaders, data, cancellationToken);
 
 
 
 
-    public virtual Task<Response> PatchAsync(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PatchAsync(string url, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response> PatchAsync(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response> PatchAsync(Uri uri, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
          GetResponseAsync(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PatchAsync<T>(string url, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PatchAsync<T>(string url, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Patch, url, requestHeaders, data, cancellationToken);
 
-    public virtual Task<Response<T>> PatchAsync<T>(Uri uri, object data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
+    public virtual Task<Response<T>> PatchAsync<T>(Uri uri, object? data, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
         GetResponseAsync<T>(HttpMethod.Patch, uri, requestHeaders, data, cancellationToken);
 }

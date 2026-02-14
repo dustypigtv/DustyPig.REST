@@ -5,11 +5,13 @@ using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Mime;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace DustyPig.REST;
 
@@ -575,11 +577,87 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
 
 
 
-    public virtual Task<Response> HeadAsync(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
-        GetResponseAsync(HttpMethod.Head, url, requestHeaders, null, cancellationToken);
+    public virtual async Task<Response<HttpResponseHeaders>> HeadAsync(string url, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Head, url, requestHeaders, null);
+        return await HeadAsync(request, cancellationToken).ConfigureAwait(false);
+    }
 
-    public virtual Task<Response> HeadAsync(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default) =>
-        GetResponseAsync(HttpMethod.Head, uri, requestHeaders, null, cancellationToken);
+    public virtual async Task<Response<HttpResponseHeaders>> HeadAsync(Uri uri, IReadOnlyDictionary<string, string>? requestHeaders = null, CancellationToken cancellationToken = default)
+    {
+        using var request = CreateRequest(HttpMethod.Head, uri, requestHeaders, null);
+        return await HeadAsync(request, cancellationToken).ConfigureAwait(false);
+    }
+
+
+
+
+    public async Task<Response<HttpResponseHeaders>> HeadAsync(HttpRequestMessage request, CancellationToken cancellationToken = default)
+    {
+        HttpStatusCode? statusCode = null;
+        string? reasonPhrase = null;
+        int previousTries = 0;
+        var retryAfter = TimeSpan.Zero;
+        while (true)
+        {
+            try
+            {
+                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
+                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                statusCode = response.StatusCode;
+                reasonPhrase = response.ReasonPhrase;
+                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
+
+                response.EnsureSuccessStatusCode();
+                return new Response<HttpResponseHeaders>
+                {
+                    Success = true,
+                    StatusCode = statusCode,
+                    ReasonPhrase = reasonPhrase,
+                    Data = response.Headers
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
+                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
+                {
+                    try
+                    {
+                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        return BuildErrorResponse(ex);
+                    }
+                    request = CloneRequest(request);
+                    previousTries++;
+                }
+                else
+                {
+                    return BuildErrorResponse(ex);
+                }
+            }
+        }
+
+        Response<HttpResponseHeaders> BuildErrorResponse(Exception ex)
+        {
+            var ret = new Response<HttpResponseHeaders>
+            {
+                Error = ex,
+                StatusCode = statusCode,
+                ReasonPhrase = reasonPhrase
+            };
+
+            if (AutoThrowIfError)
+                ret.ThrowIfError();
+
+            return ret;
+        }
+    }
+
+
+
 
 
 

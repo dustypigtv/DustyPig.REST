@@ -58,67 +58,6 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
 
 
     /// <summary>
-    /// When an error occurs, how many times to retry the api call.
-    /// <br />
-    /// Default = 0
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// There are 2 events that can trigger a retry:
-    /// </para>
-    /// <para>
-    /// 1. There is an error connecting to the server (such as a network layer error).
-    /// </para>
-    /// <para>
-    /// 2. The connection succeeded, but the server sent HttpStatusCode.TooManyRequests (429). 
-    ///    In this case, the client will attempt to get the RetryAfter header, and if found, 
-    ///    the delay will use that value. If not found, exponential backoff with jitter will be used.
-    /// </para>
-    /// </remarks>
-    public ushort RetryCount { get; set; }
-
-
-    private static bool AreRetriesPermitted(HttpStatusCode? statusCode)
-    {
-        //If statusCode == null, there was a network error, retries are permitted
-        //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
-        //If statusCode >= 500, retries are also permitted
-        if (statusCode == null)
-            return true;
-
-        if (statusCode == HttpStatusCode.TooManyRequests)
-            return true;
-
-        if ((int)statusCode >= 500)
-            return true;
-
-        return false;
-    }
-
-    private Task ThrottleNextRequest(TimeSpan retryAfter, int previousTries, CancellationToken cancellationToken)
-    {
-        if (previousTries <= 0 && previousTries >= RetryCount)
-            return Task.CompletedTask;
-
-        //If the server sent a Retry-After header, wait that long
-        if (retryAfter > TimeSpan.Zero)
-        {
-            _logger?.LogTrace("Throttling due to Retry-After header: {val}", retryAfter);
-            return Task.Delay(retryAfter, cancellationToken);
-        }
-
-
-        //Use exponential backoff with jitter
-        //https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
-        var wait = (int)Math.Pow(2, previousTries) * _random.Next(100, 1000);
-        _logger?.LogTrace("Throttling due to exponential backoff: {val}ms", wait);
-        return Task.Delay(wait, cancellationToken);
-    }
-
-
-
-
-    /// <summary>
     /// Combines the url with BaseAddress (if not null) and returns the full Uri
     /// </summary>
     public Uri GetFullUri(string url) => BaseAddress == null ? new Uri(url) : new Uri(BaseAddress, url);
@@ -217,55 +156,30 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         HttpStatusCode? statusCode = null;
         string? reasonPhrase = null;
         string? content = null;
-        int previousTries = 0;
-        var retryAfter = TimeSpan.Zero;
-        while (true)
+
+        try
         {
-            try
+            _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            statusCode = response.StatusCode;
+            reasonPhrase = response.ReasonPhrase;
+
+            if (IncludeRawContentInResponse)
+                content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+            response.EnsureSuccessStatusCode();
+            return new Response
             {
-                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
-
-                if (IncludeRawContentInResponse)
-                    content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-                response.EnsureSuccessStatusCode();
-                return new Response
-                {
-                    Success = true,
-                    StatusCode = response.StatusCode,
-                    ReasonPhrase = response.ReasonPhrase,
-                    RawContent = content
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-
-                //If statusCode == null, there was a network error, retries are permitted
-                //If statusCode == HttpStatusCode.TooManyRequests, retries are also permitted
-                //If statusCode >= 500, retries are also permitted
-                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
-                {
-                    try
-                    {
-                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        return BuildErrorResponse(ex);
-                    }
-                    request = CloneRequest(request);
-                    previousTries++;
-                }
-                else
-                {
-                    return BuildErrorResponse(ex);
-                }
-            }
+                Success = true,
+                StatusCode = response.StatusCode,
+                ReasonPhrase = response.ReasonPhrase,
+                RawContent = content
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
+            return BuildErrorResponse(ex);
         }
 
         Response BuildErrorResponse(Exception ex)
@@ -307,53 +221,33 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         string? content = null;
         HttpStatusCode? statusCode = null;
         string? reasonPhrase = null;
-        int previousTries = 0;
-        var retryAfter = TimeSpan.Zero;
-        while (true)
+
+        try
         {
-            try
-            {
-                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
+            _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            statusCode = response.StatusCode;
+            reasonPhrase = response.ReasonPhrase;
 
-                if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
-                    content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
+                content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-                response.EnsureSuccessStatusCode();
-                return new Response<T>
-                {
-                    Success = true,
-                    StatusCode = statusCode,
-                    ReasonPhrase = reasonPhrase,
-                    RawContent = IncludeRawContentInResponse ? content : null,
-                    Data = JsonSerializer.Deserialize<T>(content!, _defaultJsonSerializerOptions)
-                };
-            }
-            catch (Exception ex)
+            response.EnsureSuccessStatusCode();
+            return new Response<T>
             {
-                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
-                {
-                    try
-                    {
-                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        return BuildErrorResponse(ex);
-                    }
-                    request = CloneRequest(request);
-                    previousTries++;
-                }
-                else
-                {
-                    return BuildErrorResponse(ex);
-                }
-            }
+                Success = true,
+                StatusCode = statusCode,
+                ReasonPhrase = reasonPhrase,
+                RawContent = IncludeRawContentInResponse ? content : null,
+                Data = JsonSerializer.Deserialize<T>(content!, _defaultJsonSerializerOptions)
+            };
         }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
+            return BuildErrorResponse(ex);
+        }
+        
 
         Response<T> BuildErrorResponse(Exception ex)
         {
@@ -411,52 +305,30 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         string? content = null;
         HttpStatusCode? statusCode = null;
         string? reasonPhrase = null;
-        int previousTries = 0;
-        var retryAfter = TimeSpan.Zero;
-        while (true)
+        try
         {
-            try
-            {
-                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
+            _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            statusCode = response.StatusCode;
+            reasonPhrase = response.ReasonPhrase;
 
-                if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
-                    content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
+                content = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
-                response.EnsureSuccessStatusCode();
-                return new Response<string>
-                {
-                    Success = true,
-                    StatusCode = statusCode,
-                    ReasonPhrase = reasonPhrase,
-                    RawContent = IncludeRawContentInResponse ? content : null,
-                    Data = content
-                };
-            }
-            catch (Exception ex)
+            response.EnsureSuccessStatusCode();
+            return new Response<string>
             {
-                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
-                {
-                    try
-                    {
-                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        return BuildErrorResponse(ex);
-                    }
-                    request = CloneRequest(request);
-                    previousTries++;
-                }
-                else
-                {
-                    return BuildErrorResponse(ex);
-                }
-            }
+                Success = true,
+                StatusCode = statusCode,
+                ReasonPhrase = reasonPhrase,
+                RawContent = IncludeRawContentInResponse ? content : null,
+                Data = content
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
+            return BuildErrorResponse(ex);
         }
 
         Response<string> BuildErrorResponse(Exception ex)
@@ -496,52 +368,31 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
         byte[]? content = null;
         HttpStatusCode? statusCode = null;
         string? reasonPhrase = null;
-        int previousTries = 0;
-        var retryAfter = TimeSpan.Zero;
-        while (true)
+
+        try
         {
-            try
-            {
-                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
+            _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            statusCode = response.StatusCode;
+            reasonPhrase = response.ReasonPhrase;
 
-                if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
-                    content = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
+            if (response.IsSuccessStatusCode || IncludeRawContentInResponse)
+                content = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
 
-                response.EnsureSuccessStatusCode();
-                return new Response<byte[]>
-                {
-                    Success = true,
-                    StatusCode = statusCode,
-                    ReasonPhrase = reasonPhrase,
-                    RawContent = IncludeRawContentInResponse && content != null ? Encoding.UTF8.GetString(content) : null,
-                    Data = content
-                };
-            }
-            catch (Exception ex)
+            response.EnsureSuccessStatusCode();
+            return new Response<byte[]>
             {
-                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
-                {
-                    try
-                    {
-                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        return BuildErrorResponse(ex);
-                    }
-                    request = CloneRequest(request);
-                    previousTries++;
-                }
-                else
-                {
-                    return BuildErrorResponse(ex);
-                }
-            }
+                Success = true,
+                StatusCode = statusCode,
+                ReasonPhrase = reasonPhrase,
+                RawContent = IncludeRawContentInResponse && content != null ? Encoding.UTF8.GetString(content) : null,
+                Data = content
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
+            return BuildErrorResponse(ex);
         }
 
         Response<byte[]> BuildErrorResponse(Exception ex)
@@ -596,48 +447,27 @@ public class Client(HttpClient httpClient, ILogger? logger = null)
     {
         HttpStatusCode? statusCode = null;
         string? reasonPhrase = null;
-        int previousTries = 0;
-        var retryAfter = TimeSpan.Zero;
-        while (true)
-        {
-            try
-            {
-                _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
-                using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
-                statusCode = response.StatusCode;
-                reasonPhrase = response.ReasonPhrase;
-                retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.Zero;
 
-                response.EnsureSuccessStatusCode();
-                return new Response<HttpResponseHeaders>
-                {
-                    Success = true,
-                    StatusCode = statusCode,
-                    ReasonPhrase = reasonPhrase,
-                    Data = response.Headers
-                };
-            }
-            catch (Exception ex)
+        try
+        {
+            _logger?.LogTrace("Sending {method} request to {url}", request.Method, request.RequestUri);
+            using var response = await _httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+            statusCode = response.StatusCode;
+            reasonPhrase = response.ReasonPhrase;
+
+            response.EnsureSuccessStatusCode();
+            return new Response<HttpResponseHeaders>
             {
-                _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
-                if (previousTries < RetryCount && AreRetriesPermitted(statusCode))
-                {
-                    try
-                    {
-                        await ThrottleNextRequest(retryAfter, previousTries, cancellationToken).ConfigureAwait(false);
-                    }
-                    catch
-                    {
-                        return BuildErrorResponse(ex);
-                    }
-                    request = CloneRequest(request);
-                    previousTries++;
-                }
-                else
-                {
-                    return BuildErrorResponse(ex);
-                }
-            }
+                Success = true,
+                StatusCode = statusCode,
+                ReasonPhrase = reasonPhrase,
+                Data = response.Headers
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on {method} request to {url}", request.Method, request.RequestUri);
+            return BuildErrorResponse(ex);
         }
 
         Response<HttpResponseHeaders> BuildErrorResponse(Exception ex)
